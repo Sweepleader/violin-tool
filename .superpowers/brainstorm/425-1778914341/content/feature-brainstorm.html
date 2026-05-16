@@ -1,0 +1,125 @@
+<h2>功能模块头脑风暴</h2>
+<p class="subtitle">你已确认的需求 + 我建议的补充项。请勾选你感兴趣的功能。</p>
+
+<div class="section">
+  <div class="label">你已明确的核心需求</div>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>已确认</h4>
+      <ul>
+        <li>读谱 / 乐谱显示</li>
+        <li>调音辅助</li>
+        <li>节拍器</li>
+        <li>智能练习计划（LLM驱动）</li>
+        <li>导入音乐、生成曲谱</li>
+        <li>入门基础作为小功能</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">我建议的补充功能 — 请多选你感兴趣的</div>
+</div>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="pitch-detect" onclick="toggleSelect(this)">
+    <div class="letter">🎵</div>
+    <div class="content">
+      <h3>实时音准检测</h3>
+      <p>通过麦克风检测音高，可视化显示音准偏差，比单纯调音器更进一步——练习全程音频反馈</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="recording" onclick="toggleSelect(this)">
+    <div class="letter">⏺</div>
+    <div class="content">
+      <h3>录音与回放分析</h3>
+      <p>录制练习片段，回放、变速播放、标记段落，方便自我检查和对比进步</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="progress" onclick="toggleSelect(this)">
+    <div class="letter">📊</div>
+    <div class="content">
+      <h3>练习数据追踪</h3>
+      <p>统计练习时长、频率、音准趋势、曲目完成度，可视化成长曲线</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="fingering" onclick="toggleSelect(this)">
+    <div class="letter">🎻</div>
+    <div class="content">
+      <h3>指法与把位图</h3>
+      <p>交互式小提琴指板图，显示音符对应的指位和把位，支持各调式音阶指法参考</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="loop" onclick="toggleSelect(this)">
+    <div class="letter">🔁</div>
+    <div class="content">
+      <h3>分段循环练习</h3>
+      <p>A-B循环 + 渐进加速：标定难点段落，从慢速开始自动循环并逐步提速</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="backing" onclick="toggleSelect(this)">
+    <div class="letter">🎹</div>
+    <div class="content">
+      <h3>伴奏系统</h3>
+      <p>钢琴/乐队伴奏音轨，可调节速度、移调，让独奏练习更有音乐性</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="sight-reading" onclick="toggleSelect(this)">
+    <div class="letter">👁</div>
+    <div class="content">
+      <h3>视奏训练</h3>
+      <p>随机生成简短的陌生片段用于视奏练习，难度递增，训练快速识谱能力</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="library" onclick="toggleSelect(this)">
+    <div class="letter">📚</div>
+    <div class="content">
+      <h3>曲目库管理</h3>
+      <p>按难度、风格、作曲家组织曲目，标记练习状态（待练/进行中/已掌握）</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="warmup" onclick="toggleSelect(this)">
+    <div class="letter">🔥</div>
+    <div class="content">
+      <h3>每日热身生成</h3>
+      <p>根据你的水平和当前练习重点，自动生成每日热身组合（音阶+练习曲片段）</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="duet" onclick="toggleSelect(this)">
+    <div class="letter">🎶</div>
+    <div class="content">
+      <h3>合奏模式</h3>
+      <p>多声部同步播放，练习时可以听到其他声部，适合练习协奏曲或室内乐</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="bow" onclick="toggleSelect(this)">
+    <div class="letter">🏹</div>
+    <div class="content">
+      <h3>弓法分析</h3>
+      <p>通过音频分析推测弓速、弓压、弓的平直度，给出运弓建议</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="repertoire" onclick="toggleSelect(this)">
+    <div class="letter">📋</div>
+    <div class="content">
+      <h3>考级/比赛曲目模板</h3>
+      <p>内置常见考级体系（ABRSM、国内考级等）的曲目要求和评分标准参考</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle" style="margin-top:16px;">也欢迎在终端里补充你自己的想法。选好后告诉我！</p>
+</div>

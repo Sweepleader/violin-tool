@@ -1,0 +1,213 @@
+<h2>对照吴恩达 Agentic AI — 架构差距分析</h2>
+<p class="subtitle">逐项对比当前设计 vs 课程最佳实践，找出迭代方向</p>
+
+<div class="section">
+  <div class="label">差距 1：缺少 Evals + Trace 基础设施（⚠ 最关键的遗漏）</div>
+  <blockquote style="border-left:3px solid var(--accent);padding:8px 16px;margin:12px 0;background:var(--surface);">
+    "决定团队能否高效构建 Agent 的最大因素，是能否执行严格的 Evals 和错误分析流程。" — 吴恩达
+  </blockquote>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该增加</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#dc2626;">❌ 无评测体系</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ <strong>Trace Logger</strong> — 记录每个 Agent 调用的输入/输出/耗时/成功失败<br>
+        ✅ <strong>Eval Engine</strong> — 客观评测（音准偏差%）、主观评测（LLM 评分）、二元判断<br>
+        ✅ <strong>Trace Viewer UI</strong> — 在 App 内可视化 Agent 执行轨迹
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="label">差距 2：规划引擎只支持一种策略</div>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该增加</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 只有 Plan-then-Execute（预先生成计划 → 执行）</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ 增加 <strong>ReAct 模式</strong>（Reason → Act → Observe → 循环）<br>
+        适用场景："帮我改善音色" — 无法预定义步骤，需一边练一边调整
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="label">差距 3：反思是单模型，应该是双模型</div>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该改进</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 同一个 LLM 即生成又审查</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ <strong>Generator Agent</strong>（轻量模型，如 Claude Haiku / GPT-3.5）生成练习计划<br>
+        ✅ <strong>Critic Agent</strong>（强模型，如 Claude Opus / GPT-4）审查计划质量<br>
+        课程数据：GPT-3.5 + 反思循环 → 74%，超过 GPT-4 直接输出 67%
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="label">差距 4：编排拓扑单一</div>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该增加</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 只有层级式（Orchestrator → Agents）</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ <strong>对等式（P2P）</strong> — Technique Analyst ↔ Repertoire Advisor 互相协商<br>
+        ✅ <strong>Agent-as-Tool</strong> — 一个 Agent 把另一个 Agent 当工具调用<br>
+        ✅ <strong>图式状态机</strong> — 借鉴 LangGraph，用状态图替代树形编排
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="label">差距 5：缺少 MCP 协议支持</div>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该改进</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 每个 Tool 通过自定义 Dart 接口暴露</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ 插件 <strong>额外暴露 MCP Server 接口</strong>，LLM 通过标准协议发现和调用工具<br>
+        好处：未来可接入外部 MCP 工具（如联网搜谱、云端伴奏库）
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <div class="label">差距 6：缺少 Human-in-the-loop 节点</div>
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;">当前状态</th>
+      <th style="text-align:left;padding:8px 12px;">应该增加</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;color:#dc2626;">❌ Agent 决策无人工确认环节</td>
+      <td style="padding:8px 12px;color:#16a34a;">
+        ✅ 关键节点暂停等待用户确认（如："本周练习计划已生成，确认开始？"）<br>
+        ✅ 可配置自主性级别（完全自动 / 半自动 / 纯手动）
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>迭代后的最终架构</h3>
+</div>
+
+<div class="mockup" style="margin-top:12px;">
+  <div class="mockup-header">升级版 Agent 架构 (v3)</div>
+  <div class="mockup-body">
+<pre style="font-size:11px;line-height:1.5;margin:0;white-space:pre-wrap;">
+┌──────────────────────────────────────────────────────────────────┐
+│                         App Shell                                │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │                   Agent Layer (v3)                           │ │
+│  │                                                              │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │ │
+│  │  │ Coach    │ │ Technique│ │ Theory   │ │ Critic       │  │ │
+│  │  │ Agent    │ │ Analyst  │ │ Tutor    │ │ Agent        │  │ │
+│  │  │(Generator)│ │ Agent    │ │ Agent    │ │ (强模型审查) │  │ │
+│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬───────┘  │ │
+│  │       │            │            │              │           │ │
+│  │  ┌────┴────────────┴────────────┴──────────────┴─────────┐ │ │
+│  │  │            Agent Graph Engine (状态图)                  │ │ │
+│  │  │                                                        │ │ │
+│  │  │  ┌─────────┐    ┌──────────┐    ┌──────────────────┐  │ │ │
+│  │  │  │Plan-Then│    │  ReAct   │    │ P2P Negotiation │  │ │ │
+│  │  │  │Execute  │    │  Loop    │    │ (Agent ↔ Agent) │  │ │ │
+│  │  │  └─────────┘    └──────────┘    └──────────────────┘  │ │ │
+│  │  │                                                        │ │ │
+│  │  │  节点 = 动作 / 边 = 条件转换 / 状态 = 上下文快照       │ │ │
+│  │  └──────────────────────┬─────────────────────────────────┘ │ │
+│  └──────────────────────────┼──────────────────────────────────┘ │
+│                             │                                     │
+│  ┌──────────────────────────┼──────────────────────────────────┐ │
+│  │              Plugin Layer (v2)                               │ │
+│  │                                                              │ │
+│  │  每个插件实现 3 个接口:                                       │ │
+│  │    IPluginUI     — 手动操作 UI                               │ │
+│  │    IPluginTool   — Agent 可调用工具                          │ │
+│  │    IMcpServer    — 可选 MCP 标准接口                         │ │
+│  └──────────────────────────────────────────────────────────────┘ │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │                  Infrastructure                              │ │
+│  │                                                              │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────┐ │ │
+│  │  │AudioEngine│ │Database  │ │LLM Router│ │Trace & Evals  │ │ │
+│  │  │          │ │          │ │          │ │(新增)         │ │ │
+│  │  │PortAudio │ │SQLite    │ │按任务    │ │Trace Logger   │ │ │
+│  │  │Aubio     │ │drift     │ │选模型    │ │Eval Engine    │ │ │
+│  │  │FluidSynth│ │          │ │Generator │ │Metrics Store  │ │ │
+│  │  │          │ │          │ │/Critic   │ │Trace Viewer   │ │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └───────────────┘ │ │
+│  │  ┌──────────┐ ┌──────────────────────────────────────────┐ │ │
+│  │  │ HITL     │ │ MCP Gateway (新增)                       │ │ │
+│  │  │ Manager  │ │ 连接外部 MCP Servers + 暴露内部工具      │ │ │
+│  │  └──────────┘ └──────────────────────────────────────────┘ │ │
+│  └──────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>6 项改进总结</h3>
+  <table class="compare-table" style="width:100%;font-size:14px;">
+    <tr><th>#</th><th>改进项</th><th>来源</th><th>优先级</th></tr>
+    <tr>
+      <td>1</td><td>Trace Logger + Eval Engine + Trace Viewer</td>
+      <td>§2 评测与错误分析</td>
+      <td style="color:#dc2626;">🔴 必须</td>
+    </tr>
+    <tr>
+      <td>2</td><td>双规划策略：Plan-then-Execute + ReAct</td>
+      <td>§3 规划模式</td>
+      <td style="color:#dc2626;">🔴 必须</td>
+    </tr>
+    <tr>
+      <td>3</td><td>双模型反思：Generator(轻量) + Critic(强模型)</td>
+      <td>§3 反思模式</td>
+      <td style="color:#dc2626;">🔴 必须</td>
+    </tr>
+    <tr>
+      <td>4</td><td>状态图编排：图节点+边，替代纯树形</td>
+      <td>§5 LangGraph</td>
+      <td style="color:#ca8a04;">🟡 推荐</td>
+    </tr>
+    <tr>
+      <td>5</td><td>MCP 标准接口 + 外部工具集成</td>
+      <td>§3 MCP</td>
+      <td style="color:#ca8a04;">🟡 推荐</td>
+    </tr>
+    <tr>
+      <td>6</td><td>Human-in-the-loop + 自主性级别配置</td>
+      <td>§6 人机协同</td>
+      <td style="color:#ca8a04;">🟡 推荐</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section">
+  <p class="subtitle">最关键的三项（1+2+3）直接来自吴恩达课程的强制性最佳实践，其余三项是可选的增强。打开 <strong>http://localhost:57439</strong> 查看完整对比。</p>
+</div>

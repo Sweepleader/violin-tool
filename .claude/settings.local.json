@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:brainstorming)",
+      "Bash(Get-ChildItem *)",
+      "WebSearch"
+    ]
+  }
+}

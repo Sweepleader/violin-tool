@@ -1,0 +1,93 @@
+<h2>技术栈方案对比</h2>
+<p class="subtitle">Windows + Android 双平台，需要低延迟音频处理 + 乐谱渲染 + LLM 集成</p>
+
+<div class="options">
+  <div class="option" data-choice="flutter" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Flutter（推荐）</h3>
+      <p>Dart 语言，一套代码同时编译 Windows 原生 + Android 原生。音频通过 FFI 调用 C/C++ 底层库（Aubio/PortAudio），乐谱使用 WebView 嵌入 OSMD/VexFlow，LLM 通过 HTTP 调用 Ollama 或云端 API。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="web-pwa" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Web/PWA + Tauri 桌面壳</h3>
+      <p>TypeScript/React 为核心，Web Audio API 做实时音频，VexFlow/OSMD 原生渲染乐谱，Tone.js 做节拍器。Windows 端用 Tauri 打包为原生应用，Android 端用 PWA 或 Capacitor 打包。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="kotlin-cmp" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Kotlin Multiplatform + Compose</h3>
+      <p>Kotlin 共享业务逻辑，Compose Multiplatform 做 UI。Android 原生体验，Windows 通过 JVM 桌面。音频处理使用 JNI 或 TarsosDSP（Java 生态），乐谱渲染需要自研或 WebView。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <div class="label">关键维度对比</div>
+</div>
+
+<style>
+  .compare-table { width:100%; border-collapse:collapse; margin-top:12px; font-size:14px; }
+  .compare-table th { text-align:left; padding:8px 12px; background:var(--surface); border-bottom:2px solid var(--border); font-weight:600; }
+  .compare-table td { padding:8px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .compare-table .win { color:#16a34a; }
+  .compare-table .ok { color:#ca8a04; }
+  .compare-table .lose { color:#dc2626; }
+</style>
+
+<table class="compare-table">
+  <tr>
+    <th>维度</th><th>A — Flutter</th><th>B — Web/PWA</th><th>C — Kotlin CMP</th>
+  </tr>
+  <tr>
+    <td>Windows 原生体验</td>
+    <td class="win">✅ 原生编译，性能好</td>
+    <td class="ok">⚠ Tauri 轻量，但本质是 WebView</td>
+    <td class="ok">⚠ JVM 桌面，包体积较大</td>
+  </tr>
+  <tr>
+    <td>Android 原生体验</td>
+    <td class="win">✅ Android 原生编译</td>
+    <td class="ok">⚠ PWA/Capacitor，音频延迟较高</td>
+    <td class="win">✅ Android 原生</td>
+  </tr>
+  <tr>
+    <td>低延迟音频</td>
+    <td class="win">✅ FFI → C/C++ 库 (Aubio)</td>
+    <td class="ok">⚠ Web Audio API 可用但有延迟</td>
+    <td class="ok">⚠ JNI → C 库，路径可行但复杂</td>
+  </tr>
+  <tr>
+    <td>乐谱渲染</td>
+    <td class="ok">⚠ 需 WebView 嵌入 JS 库</td>
+    <td class="win">✅ VexFlow/OSMD 原生支持</td>
+    <td class="lose">❌ 生态空白，需大量自研</td>
+  </tr>
+  <tr>
+    <td>LLM 集成</td>
+    <td class="win">✅ HTTP 调用 Ollama/API</td>
+    <td class="win">✅ HTTP 调用，JS 生态</td>
+    <td class="ok">⚠ HTTP 可用但缺少工具链</td>
+  </tr>
+  <tr>
+    <td>开发效率</td>
+    <td class="win">✅ 单代码库，热重载</td>
+    <td class="ok">⚠ 桌面/移动需两套打包流程</td>
+    <td class="lose">❌ 生态碎片化，踩坑多</td>
+  </tr>
+  <tr>
+    <td>社区/生态</td>
+    <td class="win">✅ 活跃，插件丰富</td>
+    <td class="win">✅ 最大生态</td>
+    <td class="lose">❌ 小众，中文资料少</td>
+  </tr>
+</table>
+
+<div class="section" style="margin-top:20px;">
+  <p class="subtitle">我的推荐是 <strong>A — Flutter</strong>：单代码库覆盖双端，音频通过 FFI 调用 C 库保证低延迟，乐谱用 WebView 嵌入成熟的 JS 渲染引擎。选好后告诉我。</p>
+</div>

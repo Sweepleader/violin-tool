@@ -1,0 +1,147 @@
+<h2>从插件架构 → Agent 智能体架构</h2>
+<p class="subtitle">吴恩达提出的 4 种 Agentic 设计模式，恰好可以成为我们架构的上层编排逻辑</p>
+
+<div class="section">
+  <div class="label">吴恩达的 4 种 Agentic 设计模式</div>
+</div>
+
+<div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px;">
+  <div style="flex:1; min-width:180px; background:var(--surface); padding:12px; border-radius:8px;">
+    <h4 style="margin:0 0 4px;">🪞 Reflection</h4>
+    <p style="font-size:13px; margin:0;">Agent 审查自己的输出，自我纠错</p>
+    <p style="font-size:12px; color:var(--text-secondary); margin:4px 0 0;">例：分析练习录音 → 标记问题 → 建议改进</p>
+  </div>
+  <div style="flex:1; min-width:180px; background:var(--surface); padding:12px; border-radius:8px;">
+    <h4 style="margin:0 0 4px;">🔧 Tool Use</h4>
+    <p style="font-size:13px; margin:0;">Agent 调用外部工具扩展能力</p>
+    <p style="font-size:12px; color:var(--text-secondary); margin:4px 0 0;">例：调音器、节拍器、录音器均为工具</p>
+  </div>
+  <div style="flex:1; min-width:180px; background:var(--surface); padding:12px; border-radius:8px;">
+    <h4 style="margin:0 0 4px;">📋 Planning</h4>
+    <p style="font-size:13px; margin:0;">分解复杂任务 → 多步执行</p>
+    <p style="font-size:12px; color:var(--text-secondary); margin:4px 0 0;">例：拿到曲子 → 分段 → 安排周计划 → 每日任务</p>
+  </div>
+  <div style="flex:1; min-width:180px; background:var(--surface); padding:12px; border-radius:8px;">
+    <h4 style="margin:0 0 4px;">🤝 Multi-agent</h4>
+    <p style="font-size:13px; margin:0;">多专业 Agent 协作</p>
+    <p style="font-size:12px; color:var(--text-secondary); margin:4px 0 0;">例：教练+技巧分析+乐理导师协同指导</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">两种架构模式对比</div>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">当前：手动工具模式</div>
+    <div class="mockup-body" style="font-size:12px;">
+      <p>用户 → 手动选择工具 → 操作 → 得到结果</p>
+      <pre style="font-size:10px;line-height:1.4;">
+用户："我要练音阶"
+  ↓ 手动
+打开节拍器 → 选BPM
+打开调音器 → 检查每根弦
+打开指位图 → 选D大调
+打开音准监测 → 开始练习
+  ↓
+练习结束 → 手动查看报告
+      </pre>
+      <p style="color:var(--text-secondary);font-size:11px;">工具是孤立的，用户负担所有编排</p>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">升级：Agent 编排模式</div>
+    <div class="mockup-body" style="font-size:12px;">
+      <p>用户 → 表达意图 → Agent 编排所有工具</p>
+      <pre style="font-size:10px;line-height:1.4;">
+用户："我要练D大调音阶"
+  ↓
+Orchestrator Agent
+  ├→ Tuner: 检查调音 (Tool Use)
+  ├→ Planner: 生成本次练习计划 (Planning)
+  ├→ Metronome: 设定合适BPM (Tool Use)
+  ├→ Fingering: 显示D大调指法 (Tool Use)
+  └→ Pitch Monitor: 监控音准 (Tool Use)
+  ↓ 练习中
+  ├→ 实时分析：F#偏低 (Reflection)
+  ├→ 建议：重点练F#→G的移动 (Reflection)
+  └→ 生成练习报告 (Reflection)
+  ↓ 下次练习
+  ├→ 回顾上次问题 (Memory)
+  └→ 调整计划优先级 (Planning)
+      </pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>升级后的架构</h3>
+  <pre style="font-size:11px;line-height:1.5;background:var(--surface);padding:12px;border-radius:8px;white-space:pre-wrap;">
+┌──────────────────────────────────────────────────────┐
+│                  App Shell                            │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │           Agent Layer (新增)                     │ │
+│  │                                                  │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌────────────────┐  │ │
+│  │  │ Practice │ │ Technique│ │ Music Theory   │  │ │
+│  │  │ Coach    │ │ Analyst  │ │ Tutor          │  │ │
+│  │  │ (主教练) │ │ (技巧分析)│ │ (乐理导师)     │  │ │
+│  │  └────┬─────┘ └────┬─────┘ └───────┬────────┘  │ │
+│  │       │            │              │            │ │
+│  │  ┌────┴────────────┴──────────────┴──────────┐ │ │
+│  │  │     Agent Orchestrator (LLM-driven)       │ │ │
+│  │  │  意图理解 → 任务分解 → 工具调用 → 反思   │ │ │
+│  │  └─────────────┬─────────────────────────────┘ │ │
+│  └────────────────┼────────────────────────────────┘ │
+│                   │                                   │
+│  ┌────────────────┴────────────────────────────────┐ │
+│  │            Plugin Layer (现有)                   │ │
+│  │  Tuner | Metronome | Sheet | Recorder | ...     │ │
+│  │  每个插件同时暴露: UI视图 + Tool接口(给Agent用) │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │         Global Services                           │ │
+│  │  AudioEngine | Database | Memory System | LLM    │ │
+│  └─────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
+  </pre>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h4>插件接口升级</h4>
+  <p style="font-size:14px;">每个插件除了 UI，额外暴露 Tool 接口供 Agent 调用：</p>
+  <pre style="font-size:11px;line-height:1.5;background:var(--surface);padding:12px;border-radius:8px;">
+abstract class ToolPlugin {
+  // --- 原有 UI 接口 ---
+  Widget buildView();
+  Widget? buildCompactView();
+
+  // --- 新增 Agent Tool 接口 ---
+  ToolDefinition get toolDef;           // 工具描述（给LLM看）
+  Future&lt;ToolResult&gt; execute(ToolCall call); // Agent 可调用
+}
+  </pre>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <h3>关键优势</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>相比纯插件架构</h4>
+      <ul>
+        <li><strong>主动而非被动</strong> — Agent 监测到音准问题会主动提醒，不需要用户去找</li>
+        <li><strong>上下文连贯</strong> — 今天的练习自动关联昨天的薄弱点</li>
+        <li><strong>降低操作门槛</strong> — "我想练巴赫"一句话启动整套流程</li>
+        <li><strong>渐进增强</strong> — 离线时降级为手动工具模式，在线时启用 Agent</li>
+        <li><strong>自然扩展</strong> — 新插件只需实现 Tool 接口，Agent 自动发现</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="subtitle">这本质上是把 <strong>Plugin 层（工具）</strong> + <strong>Agent 层（智能编排）</strong> 叠加。现有插件架构完全保留，Agent 层是增量叠加。你觉得这个方向怎么样？</p>
+</div>

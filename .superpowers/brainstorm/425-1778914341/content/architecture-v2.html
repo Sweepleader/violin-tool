@@ -1,0 +1,151 @@
+<h2>架构迭代 — 两种改进方案</h2>
+<p class="subtitle">核心改进目标：统一音频管线 + 清晰的模块边界</p>
+
+<div class="section">
+  <h3>当前方案的问题</h3>
+  <div class="pros-cons">
+    <div class="cons">
+      <h4>痛点</h4>
+      <ul>
+        <li>音频分两条路径：WebView(Tone.js) + FFI(PortAudio)，无统一时钟</li>
+        <li>WebView 音频延迟不可控，与原生音准检测无法对齐</li>
+        <li>"自动跟谱"等功能需要音频 ↔ 乐谱精确同步，分裂架构做不到</li>
+        <li>模块边界模糊，代码容易耦合</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="refined" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>统一音频 + 分层架构（推荐）</h3>
+      <p>所有音频走一条 C 管线（PortAudio + FluidSynth + Aubio），由 AudioEngine 统一调度。WebView 只做乐谱渲染（纯视觉），不做音频。App 内部按 Clean Architecture 分层：UI → State → Domain → Data → Infrastructure。</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="plugin" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>插件化工具架构</h3>
+      <p>每个工具（调音器、节拍器、乐谱视图、练习计划...）都是一个插件，实现统一的 ToolPlugin 接口。主框架只负责工具注册、布局和全局服务（音频引擎、数据层）。扩展性强，但前期设计成本高。</p>
+    </div>
+  </div>
+</div>
+
+<div style="display: flex; gap: 24px; margin-top: 24px;">
+  <div class="mockup" style="flex:1;">
+    <div class="mockup-header">A — 统一音频 + Clean Architecture</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.6;">
+<pre style="font-family:monospace;font-size:12px;margin:0;white-space:pre-wrap;">
+┌─────────────────────────────────────┐
+│           UI Layer (Widgets)         │
+│  ┌────────┐ ┌────────┐ ┌─────────┐ │
+│  │乐谱视图│ │练习面板│ │工具箱页 │ │
+│  │WebView │ │ Native │ │ Native  │ │
+│  │(纯渲染)│ │        │ │         │ │
+│  └────────┘ └────────┘ └─────────┘ │
+├─────────────────────────────────────┤
+│        State Layer (Riverpod)        │
+├─────────────────────────────────────┤
+│        Domain Layer (Use Cases)      │
+│  PlanGen / PitchTrack / RecordCtrl  │
+├─────────────────┬───────────────────┤
+│  Data Layer     │ Infrastructure    │
+│  SQLite repos   │                   │
+│  Preferences    │  ┌───────────────┐│
+│                 │  │ AudioEngine C ││
+│                 │  │ ┌───────────┐ ││
+│                 │  │ │ PortAudio │ ││
+│                 │  │ │ (I/O)     │ ││
+│                 │  │ ├───────────┤ ││
+│                 │  │ │ Aubio     │ ││
+│                 │  │ │ (Pitch)   │ ││
+│                 │  │ ├───────────┤ ││
+│                 │  │ │FluidSynth │ ││
+│                 │  │ │(MIDI→WAV) │ ││
+│                 │  │ ├───────────┤ ││
+│                 │  │ │ Metronome │ ││
+│                 │  │ │ (Clock)   │ ││
+│                 │  │ └───────────┘ ││
+│                 │  └───────────────┘│
+│                 │  LLM Client (HTTP)│
+└─────────────────┴───────────────────┘
+</pre>
+    </div>
+  </div>
+  <div class="mockup" style="flex:1;">
+    <div class="mockup-header">B — 插件化工具架构</div>
+    <div class="mockup-body" style="font-size:13px;line-height:1.6;">
+<pre style="font-family:monospace;font-size:12px;margin:0;white-space:pre-wrap;">
+┌────────────────────────────────────┐
+│         App Shell (主框架)         │
+│  ┌──────────────────────────────┐ │
+│  │      Global Services         │ │
+│  │  AudioEngine / DB / LLM      │ │
+│  └──────────────────────────────┘ │
+│                                    │
+│  ┌──────┐ ┌──────┐ ┌───────────┐ │
+│  │Tuner │ │Metro │ │SheetView │  │
+│  │Plugin│ │Plugin│ │Plugin     │  │
+│  │      │ │      │ │           │  │
+│  └──────┘ └──────┘ └───────────┘ │
+│  ┌──────┐ ┌──────┐ ┌───────────┐ │
+│  │Recrd │ │Plan  │ │Fingering  │  │
+│  │Plugin│ │Plugin│ │Plugin     │  │
+│  │      │ │      │ │           │  │
+│  └──────┘ └──────┘ └───────────┘ │
+│  ┌──────────┐ ┌────────────────┐ │
+│  │Progress  │ │Sight-Reading   │ │
+│  │Plugin    │ │Plugin          │ │
+│  └──────────┘ └────────────────┘ │
+│                                    │
+│  ToolPlugin Interface:             │
+│    init() / buildUI() / dispose()  │
+│    onGlobalClock(tick)             │
+│    access engine via DI            │
+└────────────────────────────────────┘
+</pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px;">
+  <table class="compare-table" style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr>
+      <th style="text-align:left;padding:8px 12px;background:var(--surface);">维度</th>
+      <th style="text-align:left;padding:8px 12px;background:var(--surface);">A — 统一音频+分层</th>
+      <th style="text-align:left;padding:8px 12px;background:var(--surface);">B — 插件化</th>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;">音频同步</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 统一AudioEngine，一个时钟源</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 同样可统一</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;">前期开发速度</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 较快，分层自然</td>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 接口设计需要更多前期思考</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;">后期扩展</td>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 新功能需要跨层修改</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 加新工具只需写新Plugin</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;">适合项目规模</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 1-2人，中大型项目</td>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 更适合大型/团队项目</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;">过度设计风险</td>
+      <td style="padding:8px 12px;color:#16a34a;">✅ 低，结构自然</td>
+      <td style="padding:8px 12px;color:#ca8a04;">⚠ 有，前期抽象成本高</td>
+    </tr>
+  </table>
+</div>
+
+<div class="section" style="margin-top:16px;">
+  <p class="subtitle">推荐 <strong>A — 统一音频 + Clean Architecture</strong>：解决了原方案的核心问题（音频同步），不过度设计，模块边界清晰。选好后告诉我。</p>
+</div>
