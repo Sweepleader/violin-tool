@@ -23,7 +23,7 @@ class AppTheme {
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        navigationBarTheme: NavigationBarThemeData(
+        navigationBarTheme: const NavigationBarThemeData(
           indicatorColor: AppColors.primaryLight,
         ),
       );

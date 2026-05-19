@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:violin_app/core/plugin/plugin_registry.dart';
-import 'package:violin_app/core/plugin/tool_plugin.dart';
 import '../../test_utils/mock_plugin.dart';
 
 void main() {

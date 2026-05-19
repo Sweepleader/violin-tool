@@ -16,7 +16,7 @@ void main() {
     });
 
     test('LlmClient can be created with config', () {
-      final config = const LlmConfig(
+      const config = LlmConfig(
         baseUrl: 'http://localhost:11434',
         apiKey: null,
         provider: LlmProvider.ollama,
