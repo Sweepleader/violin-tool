@@ -54,6 +54,4 @@ class StubTraceLogger extends TraceLogger {
   void log(String event, {Map<String, dynamic>? data}) {}
 }
 
-class StubRegistry extends PluginRegistry {
-  void register(dynamic plugin) {}
-}
+class StubRegistry extends PluginRegistry {}
