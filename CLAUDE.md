@@ -35,3 +35,33 @@ flutter build windows    # Build Windows release
 ## Git Workflow
 
 This project uses isolated git worktrees for feature development. Use `superpowers:using-git-worktrees` skill when starting new feature work.
+
+## Recommended Skills
+
+### Per-Iteration (every task)
+| Skill | When |
+|-------|------|
+| `superpowers:test-driven-development` | Writing any implementation code |
+| `superpowers:verification-before-completion` | Before claiming work is done |
+| `superpowers:requesting-code-review` | After completing each task |
+| `superpowers:receiving-code-review` | When processing review feedback |
+
+### Per-Plan (lifecycle)
+```
+superpowers:brainstorming          → Design & requirements
+superpowers:writing-plans          → Write implementation plan
+superpowers:executing-plans        → Execute tasks sequentially (coupled tasks)
+  OR superpowers:subagent-driven   → Execute tasks in parallel (independent tasks)
+superpowers:finishing-a-development-branch  → Merge / PR / cleanup
+```
+
+### On-Demand
+| Skill | When |
+|-------|------|
+| `superpowers:systematic-debugging` | Bug or test failure |
+| `simplify` | Code cleanup after review |
+| `security-review` | Before release |
+| `superpowers:using-git-worktrees` | Starting new feature branch |
+| `claude-api` | LLM integration work (Plan 4+) |
+| `coding-standards` | Style/pattern check |
+| `frontend-patterns` | Widget/UI design decisions |
