@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:violin_app/core/plugin/tool_plugin.dart';
 import 'package:violin_app/core/plugin/plugin_context.dart';
 import 'package:violin_app/core/plugin/plugin_action.dart';
+import 'package:violin_app/core/plugin/plugin_registry.dart';
+import 'package:violin_app/core/services/database_service.dart';
 import '../../test_utils/mock_plugin.dart';
 
 void main() {
@@ -18,15 +20,17 @@ void main() {
 
     test('init accepts PluginContext', () async {
       final plugin = MockPlugin();
+      final db = await AppDatabase.memory();
       final context = PluginContext(
         audio: StubAudioEngine(),
-        db: StubDatabase(),
+        db: db,
         llm: StubLlmClient(),
         trace: StubTraceLogger(),
-        registry: StubRegistry(),
+        registry: PluginRegistry(),
       );
       await plugin.init(context);
       expect(plugin.initialized, isTrue);
+      await db.close();
     });
 
     test('buildView returns a widget', () {
