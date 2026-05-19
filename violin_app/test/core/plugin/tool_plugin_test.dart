@@ -1,0 +1,42 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:violin_app/core/plugin/tool_plugin.dart';
+import 'package:violin_app/core/plugin/plugin_context.dart';
+import 'package:violin_app/core/plugin/plugin_action.dart';
+import '../../test_utils/mock_plugin.dart';
+
+void main() {
+  group('ToolPlugin contract', () {
+    test('mock plugin implements all required getters', () {
+      final plugin = MockPlugin();
+      expect(plugin.id, isNotEmpty);
+      expect(plugin.name, isNotEmpty);
+      expect(plugin.description, isNotEmpty);
+      expect(plugin.icon, isA<IconData>());
+      expect(plugin.actions, isEmpty);
+    });
+
+    test('init accepts PluginContext', () async {
+      final plugin = MockPlugin();
+      final context = PluginContext(
+        audio: StubAudioEngine(),
+        db: StubDatabase(),
+        llm: StubLlmClient(),
+        trace: StubTraceLogger(),
+        registry: StubRegistry(),
+      );
+      await plugin.init(context);
+      expect(plugin.initialized, isTrue);
+    });
+
+    test('buildView returns a widget', () {
+      final plugin = MockPlugin();
+      expect(plugin.buildView(), isA<Widget>());
+    });
+
+    test('buildCompactView can return null', () {
+      final plugin = MockPlugin();
+      expect(plugin.buildCompactView(), isNull);
+    });
+  });
+}
