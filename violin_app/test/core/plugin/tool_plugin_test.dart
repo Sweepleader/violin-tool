@@ -17,7 +17,7 @@ void main() {
       expect(plugin.actions, isEmpty);
     });
 
-    test('init accepts Ref', () async {
+    test('init accepts ProviderContainer', () async {
       final plugin = MockPlugin();
       final db = await AppDatabase.memory();
       final container = ProviderContainer(
@@ -29,6 +29,7 @@ void main() {
           pluginRegistryProvider.overrideWithValue(PluginRegistry()),
         ],
       );
+      addTearDown(() => container.dispose());
       await plugin.init(container);
       expect(plugin.initialized, isTrue);
       await db.close();

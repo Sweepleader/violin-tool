@@ -50,7 +50,7 @@ class AppDatabase {
   int _nextPieceId = 1;
 
   static Future<AppDatabase> open(String path) async {
-    // TODO: replace with SQLite when network access is restored
+    // TODO: replace with SQLite when pub.dev access is available
     return AppDatabase();
   }
 

@@ -28,6 +28,7 @@ void main() {
     });
 
     tearDown(() async {
+      container.dispose();
       await db.close();
     });
 

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'core/plugin/plugin_registry.dart';
 import 'core/services/database_service.dart';
 import 'core/services/audio_engine_stub.dart';
@@ -13,8 +12,7 @@ import 'app.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final appDir = await getApplicationDocumentsDirectory();
-  final db = await AppDatabase.open(appDir.path);
+  final db = await AppDatabase.memory();
   final audio = AudioEngineStub();
   final llmConfig = LlmConfig.windows();
   final llm = LlmClient(config: llmConfig);
