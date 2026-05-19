@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/plugin/tool_plugin.dart';
-import '../../core/plugin/plugin_context.dart';
 import '../../core/plugin/plugin_action.dart';
+import '../../core/services/providers.dart';
 import 'tuner_page.dart';
 
 class TunerPlugin extends ToolPlugin {
-  PluginContext? _context;
-  Timer? _pitchTimer;
+  ProviderContainer? _container;
 
   @override
   String get id => 'tuner';
@@ -32,14 +32,15 @@ class TunerPlugin extends ToolPlugin {
       ];
 
   @override
-  Future<void> init(PluginContext context) async {
-    _context = context;
-    await context.audio.initialize();
+  Future<void> init(ProviderContainer container) async {
+    _container = container;
+    final audio = container.read(audioEngineProvider);
+    await audio.initialize();
   }
 
   @override
   Widget buildView() {
-    return TunerPage(plugin: this);
+    return const TunerPage();
   }
 
   @override
@@ -49,8 +50,9 @@ class TunerPlugin extends ToolPlugin {
 
   @override
   Future<void> dispose() async {
-    _pitchTimer?.cancel();
-    await _context?.audio.dispose();
+    final audio = _container?.read(audioEngineProvider);
+    await audio?.dispose();
+    _container = null;
     super.dispose();
   }
 }

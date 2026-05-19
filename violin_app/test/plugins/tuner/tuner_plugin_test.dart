@@ -1,25 +1,28 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:violin_app/plugins/tuner/tuner_plugin.dart';
-import 'package:violin_app/core/plugin/plugin_context.dart';
 import 'package:violin_app/core/plugin/plugin_registry.dart';
+import 'package:violin_app/core/services/providers.dart';
 import 'package:violin_app/core/services/database_service.dart';
 import '../../test_utils/mock_plugin.dart';
 
 void main() {
   group('TunerPlugin', () {
     late TunerPlugin plugin;
-    late PluginContext context;
+    late ProviderContainer container;
     late AppDatabase db;
 
     setUp(() async {
       db = await AppDatabase.memory();
-      context = PluginContext(
-        audio: StubAudioEngine(),
-        db: db,
-        llm: StubLlmClient(),
-        trace: StubTraceLogger(),
-        registry: PluginRegistry(),
+      container = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWithValue(StubAudioEngine()),
+          databaseProvider.overrideWithValue(db),
+          llmClientProvider.overrideWithValue(StubLlmClient()),
+          traceLoggerProvider.overrideWithValue(StubTraceLogger()),
+          pluginRegistryProvider.overrideWithValue(PluginRegistry()),
+        ],
       );
       plugin = TunerPlugin();
     });
@@ -37,7 +40,7 @@ void main() {
     });
 
     test('init initializes audio engine', () async {
-      await plugin.init(context);
+      await plugin.init(container);
     });
 
     test('buildView returns a widget', () {

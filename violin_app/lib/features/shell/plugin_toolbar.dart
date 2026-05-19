@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/plugin/plugin_registry.dart';
-
-final pluginRegistryProvider = Provider<PluginRegistry>((ref) {
-  throw UnimplementedError('PluginRegistry must be overridden in app setup');
-});
+import '../../core/services/providers.dart';
 
 class PluginToolbar extends ConsumerWidget {
   final String? selectedPluginId;

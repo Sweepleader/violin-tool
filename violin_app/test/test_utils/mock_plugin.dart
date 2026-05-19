@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:violin_app/core/plugin/tool_plugin.dart';
-import 'package:violin_app/core/plugin/plugin_context.dart';
 import 'package:violin_app/core/plugin/plugin_action.dart';
 import 'package:violin_app/core/services/audio_engine_stub.dart';
-import 'package:violin_app/core/services/llm_client.dart' show LlmClient, LlmConfig;
+import 'package:violin_app/core/services/llm_client.dart';
 import 'package:violin_app/core/services/trace_logger.dart';
 
 class MockPlugin extends ToolPlugin {
@@ -25,7 +25,7 @@ class MockPlugin extends ToolPlugin {
   List<PluginAction> get actions => const [];
 
   @override
-  Future<void> init(PluginContext context) async {
+  Future<void> init(ProviderContainer container) async {
     initialized = true;
   }
 

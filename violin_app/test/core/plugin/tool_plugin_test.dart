@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
-import 'package:violin_app/core/plugin/plugin_context.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:violin_app/core/plugin/plugin_registry.dart';
+import 'package:violin_app/core/services/providers.dart';
 import 'package:violin_app/core/services/database_service.dart';
 import '../../test_utils/mock_plugin.dart';
 
@@ -16,17 +17,19 @@ void main() {
       expect(plugin.actions, isEmpty);
     });
 
-    test('init accepts PluginContext', () async {
+    test('init accepts Ref', () async {
       final plugin = MockPlugin();
       final db = await AppDatabase.memory();
-      final context = PluginContext(
-        audio: StubAudioEngine(),
-        db: db,
-        llm: StubLlmClient(),
-        trace: StubTraceLogger(),
-        registry: PluginRegistry(),
+      final container = ProviderContainer(
+        overrides: [
+          audioEngineProvider.overrideWithValue(StubAudioEngine()),
+          databaseProvider.overrideWithValue(db),
+          llmClientProvider.overrideWithValue(StubLlmClient()),
+          traceLoggerProvider.overrideWithValue(StubTraceLogger()),
+          pluginRegistryProvider.overrideWithValue(PluginRegistry()),
+        ],
       );
-      await plugin.init(context);
+      await plugin.init(container);
       expect(plugin.initialized, isTrue);
       await db.close();
     });

@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'widgets/pitch_display.dart';
 
 class TunerPage extends StatefulWidget {
-  final dynamic plugin;
-
-  const TunerPage({super.key, required this.plugin});
+  const TunerPage({super.key});
 
   @override
   State<TunerPage> createState() => _TunerPageState();
