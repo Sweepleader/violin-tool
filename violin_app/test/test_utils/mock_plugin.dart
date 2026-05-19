@@ -3,7 +3,7 @@ import 'package:violin_app/core/plugin/tool_plugin.dart';
 import 'package:violin_app/core/plugin/plugin_context.dart';
 import 'package:violin_app/core/plugin/plugin_action.dart';
 import 'package:violin_app/core/services/audio_engine_stub.dart';
-import 'package:violin_app/core/services/llm_client.dart';
+import 'package:violin_app/core/services/llm_client.dart' show LlmClient, LlmConfig;
 import 'package:violin_app/core/services/trace_logger.dart';
 
 class MockPlugin extends ToolPlugin {
@@ -38,7 +38,9 @@ class MockPlugin extends ToolPlugin {
 
 class StubAudioEngine extends AudioEngineStub {}
 
-class StubLlmClient extends LlmClient {}
+class StubLlmClient extends LlmClient {
+  StubLlmClient() : super(config: LlmConfig.windows());
+}
 
 class StubTraceLogger extends TraceLogger {
   void log(String event, {Map<String, dynamic>? data}) {}
