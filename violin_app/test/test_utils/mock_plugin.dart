@@ -42,6 +42,4 @@ class StubLlmClient extends LlmClient {
   StubLlmClient() : super(config: LlmConfig.windows());
 }
 
-class StubTraceLogger extends TraceLogger {
-  void log(String event, {Map<String, dynamic>? data}) {}
-}
+class StubTraceLogger extends TraceLogger {}
