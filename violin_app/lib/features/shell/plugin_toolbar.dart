@@ -17,8 +17,9 @@ class PluginToolbar extends ConsumerWidget {
     final registry = ref.watch(pluginRegistryProvider);
     final plugins = registry.plugins;
 
+    final index = plugins.indexWhere((p) => p.id == selectedPluginId);
     return NavigationBar(
-      selectedIndex: plugins.indexWhere((p) => p.id == selectedPluginId),
+      selectedIndex: index >= 0 ? index : 0,
       onDestinationSelected: (index) {
         if (index < plugins.length) {
           onPluginSelected(plugins[index].id);
