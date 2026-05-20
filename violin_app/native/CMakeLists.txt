@@ -8,6 +8,7 @@ set(COMMON_SOURCES
     src/ring_buffer.cpp
     src/audio_bridge.cpp
     src/yin_pitch.cpp
+    src/metronome_engine.cpp
 )
 
 if(WIN32)
@@ -32,6 +33,13 @@ set_target_properties(ring_buffer_test PROPERTIES
 add_executable(yin_pitch_test test/yin_pitch_test.cpp src/yin_pitch.cpp)
 target_include_directories(yin_pitch_test PRIVATE include)
 set_target_properties(yin_pitch_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
+
+# ── Metronome engine test ────────────────────────────────────
+add_executable(metronome_engine_test test/metronome_engine_test.cpp
+    src/metronome_engine.cpp)
+target_include_directories(metronome_engine_test PRIVATE include)
+set_target_properties(metronome_engine_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
 
 if(WIN32)

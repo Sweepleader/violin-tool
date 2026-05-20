@@ -14,6 +14,11 @@ struct YinResult { float frequency; float confidence; };
 YinResult yin_detect(const float* samples, int n_samples, int sample_rate);
 }
 
+// Forward declarations from metronome_engine.cpp
+extern "C" {
+int metronome_generate_click(float* buffer, int sample_rate, float volume);
+}
+
 // Forward declarations from platform/
 extern "C" {
 int platform_audio_init(int sample_rate, int frames_per_buffer);
@@ -64,6 +69,11 @@ EXPORT YinResult audio_poll_pitch(int32_t sample_rate) {
         return r;
     }
     return yin_detect(buf, (int)n, sample_rate);
+}
+
+EXPORT int32_t audio_generate_click(float* buffer, int32_t sample_rate,
+                                    float volume) {
+    return metronome_generate_click(buffer, sample_rate, volume);
 }
 
 } // extern "C"

@@ -7,6 +7,7 @@ import 'core/services/llm_client.dart';
 import 'core/services/trace_logger.dart';
 import 'core/services/providers.dart';
 import 'plugins/tuner/tuner_plugin.dart';
+import 'plugins/metronome/metronome_plugin.dart';
 import 'app.dart';
 
 void main() async {
@@ -32,6 +33,10 @@ void main() async {
   final tuner = TunerPlugin();
   await tuner.init(container);
   registry.register(tuner);
+
+  final metronome = MetronomePlugin();
+  await metronome.init(container);
+  registry.register(metronome);
 
   runApp(
     UncontrolledProviderScope(
