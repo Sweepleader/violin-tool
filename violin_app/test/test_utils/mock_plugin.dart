@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:violin_app/core/plugin/tool_plugin.dart';
 import 'package:violin_app/core/plugin/plugin_action.dart';
-import 'package:violin_app/core/services/audio_engine_stub.dart';
+import 'package:violin_app/core/services/audio_engine.dart';
 import 'package:violin_app/core/services/llm_client.dart';
 import 'package:violin_app/core/services/trace_logger.dart';
 
@@ -36,7 +36,9 @@ class MockPlugin extends ToolPlugin {
   Widget? buildCompactView() => null;
 }
 
-class StubAudioEngine extends AudioEngineStub {}
+class StubAudioEngine extends AudioEngine {
+  StubAudioEngine() : super.test();
+}
 
 class StubLlmClient extends LlmClient {
   StubLlmClient() : super(config: LlmConfig.windows());

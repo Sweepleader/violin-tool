@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/plugin/plugin_registry.dart';
 import 'core/services/database_service.dart';
-import 'core/services/audio_engine_stub.dart';
+import 'core/services/audio_engine.dart';
 import 'core/services/llm_client.dart';
 import 'core/services/trace_logger.dart';
 import 'core/services/providers.dart';
@@ -13,7 +13,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final db = await AppDatabase.memory();
-  final audio = AudioEngineStub();
+  final audio = AudioEngine();
   final llmConfig = LlmConfig.windows();
   final llm = LlmClient(config: llmConfig);
   final trace = TraceLogger();
