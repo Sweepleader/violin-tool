@@ -57,6 +57,8 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# Custom native audio library
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../native native_build)
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
@@ -86,6 +88,10 @@ if(PLUGIN_BUNDLED_LIBRARIES)
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Install custom native audio library
+install(TARGETS violin_audio RUNTIME DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
 
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
