@@ -20,7 +20,6 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   @override
   void initState() {
     super.initState();
-    _startListening();
   }
 
   void _startListening() {
