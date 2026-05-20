@@ -113,54 +113,62 @@ class _PitchCurvePainter extends CustomPainter {
     final centerY = size.height / 2;
     final scaleY = centerY / maxCents;
 
-    // Center line (in-tune)
-    final centerPaint = Paint()
-      ..color = inTuneColor.withAlpha(80)
-      ..strokeWidth = 1;
+    // Center line
     canvas.drawLine(
-        Offset(0, centerY), Offset(size.width, centerY), centerPaint);
+      Offset(0, centerY),
+      Offset(size.width, centerY),
+      Paint()..color = inTuneColor.withAlpha(80)..strokeWidth = 1,
+    );
 
-    // Data line
+    // Build path
     final path = Path();
     for (int i = 0; i < history.length; i++) {
       final x = i * stepX;
       final y = centerY - (history[i].centsDeviation.clamp(-maxCents, maxCents) * scaleY);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
     }
 
-    final linePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    // Draw line
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
 
-    canvas.drawPath(path, linePaint);
+    // Fill below line
+    final fillPath = Path.from(path)
+      ..lineTo(size.width, centerY)
+      ..lineTo(0, centerY)
+      ..close();
 
-    // Gradient fill below line
-    final fillPath = Path.from(path);
-    fillPath.lineTo(size.width, centerY);
-    fillPath.lineTo(0, centerY);
-    fillPath.close();
+    // Reuse shader only when size changes
+    final shader = _getShader(size);
+    canvas.drawPath(fillPath, Paint()..shader = shader);
+  }
 
-    final fillPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          sharpColor.withAlpha(60),
-          inTuneColor.withAlpha(20),
-          flatColor.withAlpha(60),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+  Shader? _cachedShader;
+  Size? _lastSize;
 
-    canvas.drawPath(fillPath, fillPaint);
+  Shader _getShader(Size size) {
+    if (_cachedShader != null && _lastSize == size) return _cachedShader!;
+    _lastSize = size;
+    _cachedShader = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        sharpColor.withAlpha(60),
+        inTuneColor.withAlpha(20),
+        flatColor.withAlpha(60),
+      ],
+    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    return _cachedShader!;
   }
 
   @override
-  bool shouldRepaint(_PitchCurvePainter old) => history != old.history;
+  bool shouldRepaint(_PitchCurvePainter old) =>
+      history.length != old.history.length;
 }
