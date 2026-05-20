@@ -3,6 +3,13 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
+// Work around MSVC macros from windows.h
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 
 class RingBuffer {
 public:
