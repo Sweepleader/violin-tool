@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(COMMON_SOURCES
     src/ring_buffer.cpp
     src/audio_bridge.cpp
+    src/yin_pitch.cpp
 )
 
 if(WIN32)
@@ -25,6 +26,12 @@ target_include_directories(violin_audio PUBLIC include/)
 add_executable(ring_buffer_test test/ring_buffer_test.cpp)
 target_include_directories(ring_buffer_test PRIVATE include)
 set_target_properties(ring_buffer_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
+
+# ── YIN pitch detection test ─────────────────────────────────
+add_executable(yin_pitch_test test/yin_pitch_test.cpp src/yin_pitch.cpp)
+target_include_directories(yin_pitch_test PRIVATE include)
+set_target_properties(yin_pitch_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
 
 if(WIN32)

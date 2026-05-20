@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
-import 'dart:typed_data';
+import 'dart:math';
 import '../../ffi/audio_bridge.dart';
 
 class PitchResult {
@@ -23,10 +23,7 @@ class AudioEngine {
   final _pitchController = StreamController<PitchResult>.broadcast();
   bool _initialized = false;
 
-  /// Creates an AudioEngine connected to the real native library.
   AudioEngine() : _bridge = AudioBridge.instance;
-
-  /// Creates an AudioEngine not connected to native code (for testing).
   AudioEngine.test() : _bridge = null;
 
   Stream<PitchResult> get pitchStream => _pitchController.stream;
@@ -51,8 +48,8 @@ class AudioEngine {
     final receivePort = ReceivePort();
     _isolate = await Isolate.spawn(_pollLoop, receivePort.sendPort);
     receivePort.listen((data) {
-      if (data is Float32List && data.isNotEmpty) {
-        // Task 5 will add YIN here
+      if (data is _PitchData && data.confidence > 0.85) {
+        _pitchController.add(_toPitchResult(data));
       }
     });
   }
@@ -68,11 +65,38 @@ class AudioEngine {
     _pitchController.close();
   }
 
+  // Runs inside a Dart Isolate — polls C-side RingBuffer+YIN directly
   static void _pollLoop(SendPort sendPort) {
     final bridge = AudioBridge.instance;
     Timer.periodic(const Duration(milliseconds: 25), (_) {
-      final frames = bridge.readFrames(2048);
-      if (frames.isNotEmpty) sendPort.send(frames);
+      final result = bridge.pollPitch(44100);
+      if (result.confidence > 0.0) {
+        sendPort.send(_PitchData(result.frequency, result.confidence));
+      }
     });
   }
+
+  static PitchResult _toPitchResult(_PitchData data) {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const a4 = 440.0;
+    final semitones = 12 * log(data.frequency / a4) / log(2);
+    final midiNote = 69 + semitones;
+    final nearestNote = midiNote.round();
+    final cents = (midiNote - nearestNote) * 100;
+    final noteIndex = ((nearestNote % 12) + 12) % 12;
+    final octave = (nearestNote ~/ 12) - 1;
+
+    return PitchResult(
+      note: '${noteNames[noteIndex]}$octave',
+      frequency: data.frequency,
+      centsDeviation: cents,
+      confidence: data.confidence,
+    );
+  }
+}
+
+class _PitchData {
+  final double frequency;
+  final double confidence;
+  _PitchData(this.frequency, this.confidence);
 }

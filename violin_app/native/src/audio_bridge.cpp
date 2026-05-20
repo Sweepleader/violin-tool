@@ -8,6 +8,12 @@
 #define EXPORT __attribute__((visibility("default")))
 #endif
 
+// Forward declarations from yin_pitch.cpp
+extern "C" {
+struct YinResult { float frequency; float confidence; };
+YinResult yin_detect(const float* samples, int n_samples, int sample_rate);
+}
+
 // Forward declarations from platform/
 extern "C" {
 int platform_audio_init(int sample_rate, int frames_per_buffer);
@@ -41,6 +47,23 @@ EXPORT int32_t audio_read(float* buffer, int32_t max_frames) {
 
 EXPORT int32_t audio_available() {
     return (int32_t)g_ring.available();
+}
+
+EXPORT YinResult audio_analyze_pitch(const float* samples,
+                                      int32_t n_samples,
+                                      int32_t sample_rate) {
+    return yin_detect(samples, n_samples, sample_rate);
+}
+
+// Read from RingBuffer and run YIN in one call — no Dart-side memory allocation
+EXPORT YinResult audio_poll_pitch(int32_t sample_rate) {
+    float buf[4096];
+    size_t n = g_ring.read(buf, 4096);
+    if (n < 256) {
+        YinResult r = {0.0f, 0.0f};
+        return r;
+    }
+    return yin_detect(buf, (int)n, sample_rate);
 }
 
 } // extern "C"
