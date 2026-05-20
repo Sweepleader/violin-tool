@@ -14,12 +14,18 @@ if(WIN32)
 elseif(ANDROID)
     set(PLATFORM_SOURCES src/platform/audio_android.cpp)
 else()
-    set(PLATFORM_SOURCES src/platform/audio_windows.cpp)
+    message(FATAL_ERROR "Unsupported platform — only Windows and Android are supported")
 endif()
 
 add_library(violin_audio SHARED ${COMMON_SOURCES} ${PLATFORM_SOURCES})
 
 target_include_directories(violin_audio PUBLIC include/)
+
+# ── RingBuffer unit test ──────────────────────────────────────
+add_executable(ring_buffer_test test/ring_buffer_test.cpp)
+target_include_directories(ring_buffer_test PRIVATE include)
+set_target_properties(ring_buffer_test PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/test")
 
 if(WIN32)
     target_compile_options(violin_audio PRIVATE /utf-8)
