@@ -15,10 +15,18 @@ std::thread g_thread;
 int g_sample_rate = 44100;
 
 void capture_loop(IMMDevice* device) {
+    // COM must be initialized on THIS thread
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    bool comOwned = SUCCEEDED(hr);
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
+
     IAudioClient* client = nullptr;
-    HRESULT hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                                  (void**)&client);
-    if (FAILED(hr)) return;
+    hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+                          (void**)&client);
+    if (FAILED(hr)) {
+        if (comOwned) CoUninitialize();
+        return;
+    }
 
     WAVEFORMATEX* pwfx = nullptr;
     client->GetMixFormat(&pwfx);
@@ -35,6 +43,7 @@ void capture_loop(IMMDevice* device) {
     if (FAILED(hr)) {
         client->Release();
         device->Release();
+        if (comOwned) CoUninitialize();
         return;
     }
 
@@ -66,6 +75,7 @@ void capture_loop(IMMDevice* device) {
     capture->Release();
     client->Release();
     device->Release();
+    if (comOwned) CoUninitialize();
 }
 
 } // anonymous namespace
@@ -82,8 +92,9 @@ int platform_audio_start(RingBuffer* ring) {
     g_ring = ring;
     g_running.store(true);
 
+    // COM may already be initialized by Flutter or the capture thread
     HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return -1;
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE && hr != S_FALSE) return -1;
 
     IMMDeviceEnumerator* enumerator = nullptr;
     hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,

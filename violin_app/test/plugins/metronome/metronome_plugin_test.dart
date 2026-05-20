@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:violin_app/plugins/metronome/metronome_plugin.dart';
 import 'package:violin_app/core/plugin/plugin_registry.dart';
 import 'package:violin_app/core/services/providers.dart';
-import 'package:violin_app/core/services/audio_engine.dart';
 import 'package:violin_app/core/services/database_service.dart';
 import '../../test_utils/mock_plugin.dart';
 

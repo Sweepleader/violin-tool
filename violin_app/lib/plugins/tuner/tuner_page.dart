@@ -14,21 +14,31 @@ class TunerPage extends ConsumerStatefulWidget {
 
 class _TunerPageState extends ConsumerState<TunerPage> {
   StreamSubscription<PitchResult>? _subscription;
-  PitchResult? _latestPitch;
+  final List<PitchResult> _history = [];
+  static const _maxHistory = 60;
   bool _listening = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
   }
 
-  void _startListening() {
+  Future<void> _startListening() async {
+    setState(() => _error = null);
     final audio = ref.read(audioEngineProvider);
     _subscription = audio.pitchStream.listen((pitch) {
-      setState(() => _latestPitch = pitch);
+      setState(() {
+        _history.add(pitch);
+        if (_history.length > _maxHistory) _history.removeAt(0);
+      });
     });
-    audio.start();
-    _listening = true;
+    try {
+      await audio.start();
+      setState(() => _listening = true);
+    } catch (e) {
+      setState(() => _error = 'Failed to start microphone: $e');
+    }
   }
 
   void _toggleListening() {
@@ -38,7 +48,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
       _subscription?.cancel();
       setState(() {
         _listening = false;
-        _latestPitch = null;
+        _history.clear();
       });
     } else {
       _startListening();
@@ -53,32 +63,61 @@ class _TunerPageState extends ConsumerState<TunerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tuner'),
         actions: [
+          if (_listening)
+            Container(
+              width: 12,
+              height: 12,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+            ),
           IconButton(
-            icon: Icon(_listening ? Icons.mic : Icons.mic_off),
+            icon: Icon(_listening ? Icons.mic : Icons.mic_none),
+            tooltip: _listening ? 'Stop' : 'Start',
             onPressed: _toggleListening,
           ),
         ],
       ),
       body: Center(
-        child: _latestPitch != null
-            ? PitchDisplay(
-                frequency: _latestPitch!.frequency,
-                noteName: _latestPitch!.note,
-                centsDeviation: _latestPitch!.centsDeviation,
+        child: _error != null
+            ? Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.warning_amber, size: 48, color: Colors.orange),
+                    const SizedBox(height: 16),
+                    Text(_error!, textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _startListening,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.mic_none, size: 64,
-                      color: Theme.of(context).colorScheme.onSurface.withAlpha(100)),
-                  const SizedBox(height: 16),
-                  const Text('Tap the mic icon to start'),
-                ],
-              ),
+            : _history.isNotEmpty
+                ? PitchDisplay(history: _history)
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.mic_none, size: 48,
+                          color: theme.colorScheme.onSurface.withAlpha(80)),
+                      const SizedBox(height: 16),
+                      Text('Tap the mic icon to start',
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurface.withAlpha(153),
+                          )),
+                    ],
+                  ),
       ),
     );
   }

@@ -34,7 +34,7 @@ class AudioEngine {
       _initialized = true;
       return;
     }
-    final result = _bridge!.init(44100, 256);
+    final result = _bridge.init(44100, 256);
     if (result != 0) throw Exception('audio_init failed: $result');
     _initialized = true;
   }
@@ -42,7 +42,7 @@ class AudioEngine {
   Future<void> start() async {
     if (!_initialized) await initialize();
     if (_bridge == null) return;
-    final result = _bridge!.start();
+    final result = _bridge.start();
     if (result != 0) throw Exception('audio_start failed: $result');
 
     final receivePort = ReceivePort();
