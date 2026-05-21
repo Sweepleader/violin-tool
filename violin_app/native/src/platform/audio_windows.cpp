@@ -220,11 +220,8 @@ void render_loop(IMMDevice* device) {
 
         WAVEFORMATEX* pwfx = nullptr;
         client->GetMixFormat(&pwfx);
-        pwfx->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-        pwfx->nChannels = 1;
-        pwfx->wBitsPerSample = 32;
-        pwfx->nBlockAlign = 4;
-        pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * 4;
+        const int nChannels = pwfx->nChannels;
+        const auto fmt = parse_format(pwfx);
 
         hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                 0, 200000, 0, pwfx, nullptr);
@@ -238,23 +235,31 @@ void render_loop(IMMDevice* device) {
         client->GetService(__uuidof(IAudioRenderClient), (void**)&render);
         client->Start();
 
-        std::vector<float> silence(bufferFrames, 0.0f);
-        std::vector<float> mix(bufferFrames, 0.0f);
+        // Total samples = frames × channels
+        std::vector<float> silence(bufferFrames * nChannels, 0.0f);
+        std::vector<float> mono(bufferFrames, 0.0f);
+        std::vector<float> mix(bufferFrames * nChannels, 0.0f);
 
         while (g_out_running.load(std::memory_order_relaxed)) {
             Sleep(5);
-            // Read from output ring, mix with silence
-            size_t got = g_out_ring->read(mix.data(), bufferFrames);
+            size_t got = g_out_ring->read(mono.data(), bufferFrames);
             if (got == 0) {
-                std::memcpy(mix.data(), silence.data(), bufferFrames * sizeof(float));
-            } else if (got < bufferFrames) {
-                std::memset(mix.data() + got, 0, (bufferFrames - got) * sizeof(float));
+                std::memcpy(mix.data(), silence.data(),
+                            bufferFrames * nChannels * sizeof(float));
+            } else {
+                // Expand mono → interleaved multi-channel
+                for (UINT32 i = 0; i < bufferFrames; ++i) {
+                    float val = (i < got) ? mono[i] : 0.0f;
+                    for (int ch = 0; ch < nChannels; ++ch)
+                        mix[i * nChannels + ch] = val;
+                }
             }
 
             BYTE* dst;
             hr = render->GetBuffer(bufferFrames, &dst);
             if (SUCCEEDED(hr)) {
-                std::memcpy(dst, mix.data(), bufferFrames * sizeof(float));
+                std::memcpy(dst, mix.data(),
+                            bufferFrames * nChannels * sizeof(float));
                 render->ReleaseBuffer(bufferFrames, 0);
             }
         }
