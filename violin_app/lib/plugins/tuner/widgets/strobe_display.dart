@@ -25,6 +25,7 @@ class StrobeDisplay extends StatefulWidget {
 class _StrobeDisplayState extends State<StrobeDisplay> {
   Timer? _timer;
   double _prevPhase = 0;
+  double _smoothFreqErr = 0; // EMA-smoothed frequency error (mechanical inertia)
   bool _init = false;
 
   static const _bandCount = 8;
@@ -47,10 +48,12 @@ class _StrobeDisplayState extends State<StrobeDisplay> {
 
     if (widget.detectedFrequency != null &&
         widget.detectedFrequency! > 0) {
-      // Software mode: frequency difference → phase delta
-      final freqErr = widget.detectedFrequency! - widget.refFrequency;
-      // Δphase = Δf × Δt. 30ms per frame.
-      delta = freqErr * 0.030;
+      // Software mode: frequency difference → EMA-smoothed → phase delta
+      // Heavy smoothing mimics mechanical disc inertia (alpha=0.06)
+      final rawErr = widget.detectedFrequency! - widget.refFrequency;
+      _smoothFreqErr += (rawErr - _smoothFreqErr) * 0.06;
+      // Δphase = Δf_smooth × Δt (30ms)
+      delta = _smoothFreqErr * 0.030;
     } else {
       // Audio mode: C++ phase comparator
       final bridge = AudioBridge.instance;
