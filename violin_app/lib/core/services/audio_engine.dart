@@ -79,6 +79,9 @@ class AudioEngine {
   }
 
   static PitchResult _toPitchResult(_PitchData data) {
+    if (!data.frequency.isFinite || data.frequency <= 0) {
+      return const PitchResult(note: '--', frequency: 0, centsDeviation: 0, confidence: 0);
+    }
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const a4 = 440.0;
     final semitones = 12 * log(data.frequency / a4) / log(2);

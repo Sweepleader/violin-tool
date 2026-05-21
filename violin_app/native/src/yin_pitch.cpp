@@ -63,7 +63,11 @@ YinResult yin_detect(const float* samples, int n_samples, int sample_rate) {
     float s0 = cum_mean[tau - 1], s1 = cum_mean[tau], s2 = cum_mean[tau + 1];
     float denom = 2.0f * (2.0f * s1 - s2 - s0);
     float better_tau = denom != 0.0f ? (float)tau + (s2 - s0) / denom : (float)tau;
-
+    if (better_tau <= 0.0f || !std::isfinite(better_tau)) {
+        delete[] diff;
+        delete[] cum_mean;
+        return result;
+    }
     result.frequency = (float)sample_rate / better_tau;
     result.confidence = 1.0f - s1;
     if (result.confidence < 0.0f) result.confidence = 0.0f;
