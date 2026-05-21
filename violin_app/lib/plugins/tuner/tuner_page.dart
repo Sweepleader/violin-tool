@@ -117,11 +117,12 @@ class _TunerPageState extends ConsumerState<TunerPage> {
               decoration: const BoxDecoration(
                   color: Colors.red, shape: BoxShape.circle),
             ),
-          TextButton(
+          TextButton.icon(
             onPressed: () => setState(() => _holdMode = !_holdMode),
-            child: Text(_holdMode ? 'Hold' : 'Live',
-                style: TextStyle(
-                    fontSize: 12, color: theme.colorScheme.onPrimary)),
+            icon: Icon(_holdMode ? Icons.lock : Icons.bolt,
+                size: 16, color: Colors.white),
+            label: Text(_holdMode ? 'Hold' : 'Live',
+                style: const TextStyle(fontSize: 12, color: Colors.white)),
           ),
           IconButton(
             icon: Icon(_listening ? Icons.mic : Icons.mic_none),
