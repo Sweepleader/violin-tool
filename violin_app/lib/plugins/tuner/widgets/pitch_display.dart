@@ -59,6 +59,7 @@ class PitchDisplay extends StatelessWidget {
               refFrequency:
                   instrument.stringFreqs[instrument.stringNames.indexOf(
                       instrument.closestString(sm.displayFrequency))],
+              detectedFrequency: sm.displayFrequency,
               color: color,
             )
           else

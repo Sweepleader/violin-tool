@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../ffi/audio_bridge.dart';
 
 /// Peterson-style stroboscopic tuner.
-/// 8 horizontal bands, each representing a harmonic of the reference frequency.
-/// Band scroll speed = frequency error × harmonic multiplier.
-/// All bands stationary = perfectly in tune.
+/// 8 horizontal harmonic bands, scroll speed = frequency error × harmonic.
+/// When [detectedFrequency] is provided (demo/YIN), uses software frequency diff.
+/// Otherwise falls back to audio phase comparator.
 class StrobeDisplay extends StatefulWidget {
-  final double refFrequency; // target frequency (e.g., A4 = 440.0)
+  final double refFrequency;
+  final double? detectedFrequency; // from YIN or demo state machine
   final Color color;
 
   const StrobeDisplay({
     super.key,
     required this.refFrequency,
+    this.detectedFrequency,
     required this.color,
   });
 
@@ -25,7 +27,6 @@ class _StrobeDisplayState extends State<StrobeDisplay> {
   double _prevPhase = 0;
   bool _init = false;
 
-  // 8 harmonic bands: 1×, 2×, 3×, 4×, 5×, 6×, 7×, 8×
   static const _bandCount = 8;
   final List<double> _offsets = List.filled(_bandCount, 0);
 
@@ -42,30 +43,37 @@ class _StrobeDisplayState extends State<StrobeDisplay> {
   }
 
   void _poll(Timer t) {
-    final bridge = AudioBridge.instance;
-    final result = bridge.strobePoll(widget.refFrequency, 44100);
-    if (result.confidence < 0.1) return;
+    double? delta;
 
-    if (!_init) {
+    if (widget.detectedFrequency != null &&
+        widget.detectedFrequency! > 0) {
+      // Software mode: frequency difference → phase delta
+      final freqErr = widget.detectedFrequency! - widget.refFrequency;
+      // Δphase = Δf × Δt. 30ms per frame.
+      delta = freqErr * 0.030;
+    } else {
+      // Audio mode: C++ phase comparator
+      final bridge = AudioBridge.instance;
+      final result = bridge.strobePoll(widget.refFrequency, 44100);
+      if (result.confidence < 0.1) return;
+
+      if (!_init) {
+        _prevPhase = result.phase;
+        _init = true;
+        return;
+      }
+      delta = result.phase - _prevPhase;
+      if (delta > 0.5) delta -= 1.0;
+      if (delta < -0.5) delta += 1.0;
       _prevPhase = result.phase;
-      _init = true;
-      return;
     }
 
-    // Phase delta with wrap-around detection
-    double delta = result.phase - _prevPhase;
-    if (delta > 0.5) delta -= 1.0;
-    if (delta < -0.5) delta += 1.0;
-    _prevPhase = result.phase;
+    if (delta == null || delta.abs() < 1e-6) return;
 
-    // delta > 0 → input is sharp (higher freq → phase advances)
-    // delta < 0 → input is flat
-    if (delta.abs() < 1e-6) return; // no change, skip setState
-
+    final d = delta;
     setState(() {
       for (int i = 0; i < _bandCount; i++) {
-        _offsets[i] += delta * (i + 1) * 120; // harmonic multiplier × visual scale
-        // Keep offsets bounded to avoid floating point drift
+        _offsets[i] += d * (i + 1) * 120;
         if (_offsets[i] > 1000) _offsets[i] -= 1000;
         if (_offsets[i] < -1000) _offsets[i] += 1000;
       }
@@ -84,7 +92,6 @@ class _StrobeDisplayState extends State<StrobeDisplay> {
       child: ClipRect(
         child: Column(
           children: List.generate(_bandCount, (i) {
-            // Top bands = higher harmonics = more sensitive
             final idx = _bandCount - 1 - i;
             return Padding(
               padding: EdgeInsets.only(bottom: i < _bandCount - 1 ? gap : 0),
@@ -121,8 +128,6 @@ class _StrobeBandPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const stripeW = 14.0;
     final count = (size.width / stripeW).ceil() + 2;
-
-    // Higher harmonics use thinner, more transparent stripes for subtlety
     final alpha = (0.25 + harmonic * 0.07).clamp(0.3, 0.7);
 
     for (int s = -1; s <= count; s++) {
