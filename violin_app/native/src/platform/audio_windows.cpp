@@ -15,67 +15,70 @@ std::thread g_thread;
 int g_sample_rate = 44100;
 
 void capture_loop(IMMDevice* device) {
-    // COM must be initialized on THIS thread
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    bool comOwned = SUCCEEDED(hr);
-    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
+    try {
+        // COM must be initialized on THIS thread
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        bool comOwned = SUCCEEDED(hr);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
 
-    IAudioClient* client = nullptr;
-    hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                          (void**)&client);
-    if (FAILED(hr)) {
-        if (comOwned) CoUninitialize();
-        return;
-    }
+        IAudioClient* client = nullptr;
+        hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+                              (void**)&client);
+        if (FAILED(hr)) {
+            if (comOwned) CoUninitialize();
+            return;
+        }
 
-    WAVEFORMATEX* pwfx = nullptr;
-    client->GetMixFormat(&pwfx);
-    pwfx->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-    pwfx->nChannels = 1;
-    pwfx->wBitsPerSample = 32;
-    pwfx->nBlockAlign = 4;
-    pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * 4;
+        WAVEFORMATEX* pwfx = nullptr;
+        client->GetMixFormat(&pwfx);
+        pwfx->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+        pwfx->nChannels = 1;
+        pwfx->wBitsPerSample = 32;
+        pwfx->nBlockAlign = 4;
+        pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * 4;
 
-    REFERENCE_TIME hnsRequested = 100000;  // 10ms
-    hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
-        0,  // no stream flags = capture mode
-        hnsRequested, 0, pwfx, nullptr);
-    if (FAILED(hr)) {
+        REFERENCE_TIME hnsRequested = 100000;
+        hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
+            0, hnsRequested, 0, pwfx, nullptr);
+        if (FAILED(hr)) {
+            client->Release();
+            device->Release();
+            if (comOwned) CoUninitialize();
+            return;
+        }
+
+        UINT32 bufferFrameCount;
+        client->GetBufferSize(&bufferFrameCount);
+
+        IAudioCaptureClient* capture = nullptr;
+        client->GetService(__uuidof(IAudioCaptureClient), (void**)&capture);
+        client->Start();
+
+        while (g_running.load(std::memory_order_relaxed)) {
+            Sleep(5);
+            UINT32 packetLength = 0;
+            capture->GetNextPacketSize(&packetLength);
+            while (packetLength > 0) {
+                float* data;
+                UINT32 numFrames;
+                DWORD flags;
+                capture->GetBuffer((BYTE**)&data, &numFrames, &flags,
+                                   nullptr, nullptr);
+                if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT))
+                    g_ring->write(data, numFrames);
+                capture->ReleaseBuffer(numFrames);
+                capture->GetNextPacketSize(&packetLength);
+            }
+        }
+
+        client->Stop();
+        capture->Release();
         client->Release();
         device->Release();
         if (comOwned) CoUninitialize();
-        return;
+    } catch (...) {
+        // Prevent abort() — silently exit capture thread
     }
-
-    UINT32 bufferFrameCount;
-    client->GetBufferSize(&bufferFrameCount);
-
-    IAudioCaptureClient* capture = nullptr;
-    client->GetService(__uuidof(IAudioCaptureClient), (void**)&capture);
-    client->Start();
-
-    while (g_running.load(std::memory_order_relaxed)) {
-        Sleep(5);
-        UINT32 packetLength = 0;
-        capture->GetNextPacketSize(&packetLength);
-        while (packetLength > 0) {
-            float* data;
-            UINT32 numFrames;
-            DWORD flags;
-            capture->GetBuffer((BYTE**)&data, &numFrames, &flags,
-                               nullptr, nullptr);
-            if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT))
-                g_ring->write(data, numFrames);
-            capture->ReleaseBuffer(numFrames);
-            capture->GetNextPacketSize(&packetLength);
-        }
-    }
-
-    client->Stop();
-    capture->Release();
-    client->Release();
-    device->Release();
-    if (comOwned) CoUninitialize();
 }
 
 } // anonymous namespace
@@ -104,10 +107,15 @@ int platform_audio_start(RingBuffer* ring) {
     IMMDevice* device = nullptr;
     hr = enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &device);
     enumerator->Release();
-    if (FAILED(hr)) return -1;
+    if (FAILED(hr)) return -2;  // -2 = no microphone found
 
-    g_thread = std::thread(capture_loop, device);
-    return g_thread.joinable() ? 0 : -1;
+    try {
+        g_thread = std::thread(capture_loop, device);
+        return g_thread.joinable() ? 0 : -1;
+    } catch (...) {
+        g_running.store(false);
+        return -1;
+    }
 }
 
 void platform_audio_stop() {

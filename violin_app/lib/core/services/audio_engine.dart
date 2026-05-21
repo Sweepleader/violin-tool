@@ -43,6 +43,7 @@ class AudioEngine {
     if (!_initialized) await initialize();
     if (_bridge == null) return;
     final result = _bridge.start();
+    if (result == -2) throw Exception('No microphone found');
     if (result != 0) throw Exception('audio_start failed: $result');
 
     final receivePort = ReceivePort();
