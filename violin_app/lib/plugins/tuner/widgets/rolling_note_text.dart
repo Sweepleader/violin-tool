@@ -53,10 +53,6 @@ class _RollingNoteTextState extends State<RollingNoteText>
     super.dispose();
   }
 
-  // Map individual characters to rolling offsets
-  static final _chars = 'ABCDEFG#0123456789-';
-  int _charIndex(String ch) => _chars.indexOf(ch);
-
   @override
   Widget build(BuildContext context) {
     final t = _anim.value;

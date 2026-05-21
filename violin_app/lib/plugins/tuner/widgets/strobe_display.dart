@@ -71,7 +71,7 @@ class _StrobeDisplayState extends State<StrobeDisplay> {
       _prevPhase = result.phase;
     }
 
-    if (delta == null || delta.abs() < 1e-6) return;
+    if (delta.abs() < 1e-6) return;
 
     final d = delta;
     setState(() {
