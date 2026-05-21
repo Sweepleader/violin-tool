@@ -68,34 +68,59 @@ class _TunerPageState extends ConsumerState<TunerPage> {
     });
 
     final rng = Random();
-    double cents = 0;
-    double velocity = 0;
-    final notes = [('A4', 440.0), ('D5', 587.33), ('E5', 659.25), ('A4', 440.0)];
+    // Demo phases: flat→tune up→inTune(hold)→sharp→back→change note
+    final notes = [('A4', 440.0), ('D5', 587.33), ('A4', 440.0)];
     int noteIdx = 0;
-    int noteTicks = 0;
+    int tick = 0;
+    double cents = -25; // start flat
+
+    // Pre-computed trajectory for realistic tuning simulation
+    // Phase: 0=flat drift, 1=approaching, 2=inTune hold, 3=overshoot, 4=return
+    int phase = 0;
+    int phaseTick = 0;
 
     _demoTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      noteTicks++;
-      if (noteTicks > 80 && noteIdx < notes.length - 1) {
-        noteTicks = 0;
-        noteIdx++;
-      }
+      tick++;
+      phaseTick++;
       final targetHz = notes[noteIdx].$2;
-      velocity += -0.3 * velocity * 0.1 + 4.0 * (rng.nextDouble() - 0.5);
-      cents += velocity;
-      if (cents > 30) cents = 30;
-      if (cents < -30) cents = -30;
-      cents *= 0.98;
-      double spike = 0;
-      if (rng.nextDouble() < 0.03) spike = (rng.nextDouble() - 0.5) * 50;
-      final finalCents = cents + spike;
+
+      // State machine for realistic tuning behavior
+      if (phase == 0 && phaseTick > 30) { phase = 1; phaseTick = 0; } // drift→approach
+      if (phase == 1 && phaseTick > 40) { phase = 2; phaseTick = 0; } // approach→inTune
+      if (phase == 2 && phaseTick > 50) { phase = 3; phaseTick = 0; } // inTune→overshoot
+      if (phase == 3 && phaseTick > 20) { phase = 4; phaseTick = 0; } // overshoot→return
+      if (phase == 4 && phaseTick > 30) { // return→next note
+        phase = 0; phaseTick = 0;
+        noteIdx = (noteIdx + 1) % notes.length;
+        cents = -25;
+      }
+
+      // Cents target per phase
+      double targetCents;
+      switch (phase) {
+        case 0: targetCents = -20 + rng.nextDouble() * 5; break; // flat, slightly unstable
+        case 1: targetCents = -20 + 20 * (phaseTick / 40.0); break; // linear approach
+        case 2: targetCents = (rng.nextDouble() - 0.5) * 1.5; break; // in-tune, ±1.5¢
+        case 3: targetCents = 5 + rng.nextDouble() * 3; break; // slight overshoot
+        case 4: targetCents = 5 - 5 * (phaseTick / 30.0); break; // return to in-tune
+        default: targetCents = 0;
+      }
+
+      // Smooth approach to target (simulates musician adjusting)
+      cents += (targetCents - cents) * 0.15;
+      // Tiny natural jitter (±0.3¢)
+      final finalCents = cents + (rng.nextDouble() - 0.5) * 0.6;
       final finalHz = targetHz * pow(2, finalCents / 1200);
+
+      final conf = phase == 2 ? 0.92 + rng.nextDouble() * 0.06  // in-tune: high conf
+          : phase == 1 || phase == 4 ? 0.85 + rng.nextDouble() * 0.1
+          : 0.82 + rng.nextDouble() * 0.08;
 
       _sm.feed(PitchResult(
         note: notes[noteIdx].$1,
         frequency: finalHz,
         centsDeviation: finalCents,
-        confidence: 0.88 + rng.nextDouble() * 0.1,
+        confidence: conf,
       ));
       if (mounted) setState(() {});
     });
