@@ -17,8 +17,10 @@ class TunerPage extends ConsumerStatefulWidget {
 class _TunerPageState extends ConsumerState<TunerPage> {
   StreamSubscription<PitchResult>? _subscription;
   final _sm = TunerStateMachine();
-  AudioEngine? _audio; // captured in initState for dispose safety
+  Timer? _idleTimer;
+  AudioEngine? _audio;
   bool _listening = false;
+  bool _holdMode = true; // true = keep last pitch, false = real-time clear
   bool _strobeMode = false;
   String? _error;
   InstrumentConfig _instrument = InstrumentConfig.violin;
@@ -27,27 +29,36 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   void initState() {
     super.initState();
     _audio = ref.read(audioEngineProvider);
-    // Defer past frame cycle to avoid FFI scheduler crash
     Future.microtask(_startListening);
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _idleTimer?.cancel();
     _audio?.stop();
     super.dispose();
+  }
+
+  void _onPitch(PitchResult pitch) {
+    _idleTimer?.cancel();
+    _sm.feed(pitch);
+    if (mounted) setState(() {});
+    if (!_holdMode) {
+      // Real-time: if no pitch for 200ms, reset to idle
+      _idleTimer = Timer(const Duration(milliseconds: 200), () {
+        _sm.reset();
+        if (mounted) setState(() {});
+      });
+    }
   }
 
   Future<void> _startListening() async {
     setState(() => _error = null);
     final audio = _audio!;
-    // Ensure clean state before starting
     await audio.stop();
     _subscription?.cancel();
-    _subscription = audio.pitchStream.listen((pitch) {
-      _sm.feed(pitch);
-      if (mounted) setState(() {});
-    });
+    _subscription = audio.pitchStream.listen(_onPitch);
     try {
       await audio.start();
       setState(() => _listening = true);
@@ -57,10 +68,10 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   }
 
   void _toggleListening() {
-    final audio = _audio!;
     if (_listening) {
-      audio.stop();
+      _audio!.stop();
       _subscription?.cancel();
+      _idleTimer?.cancel();
       setState(() => _listening = false);
     } else {
       _startListening();
@@ -102,10 +113,16 @@ class _TunerPageState extends ConsumerState<TunerPage> {
           if (_listening)
             Container(
               width: 10, height: 10,
-              margin: const EdgeInsets.only(right: 12),
+              margin: const EdgeInsets.only(right: 4),
               decoration: const BoxDecoration(
                   color: Colors.red, shape: BoxShape.circle),
             ),
+          TextButton(
+            onPressed: () => setState(() => _holdMode = !_holdMode),
+            child: Text(_holdMode ? 'Hold' : 'Live',
+                style: TextStyle(
+                    fontSize: 12, color: theme.colorScheme.onPrimary)),
+          ),
           IconButton(
             icon: Icon(_listening ? Icons.mic : Icons.mic_none),
             tooltip: _listening ? 'Stop' : 'Start',

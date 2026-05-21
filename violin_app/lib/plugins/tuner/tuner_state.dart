@@ -103,4 +103,14 @@ class TunerStateMachine {
         break;
     }
   }
+
+  void reset() {
+    _state = TunerState.idle;
+    _currentNote = null;
+    _displayCents = 0;
+    _displayFrequency = 0;
+    _silenceFrames = 0;
+    _stableNoteFrames = 0;
+    _recentCents.clear();
+  }
 }
