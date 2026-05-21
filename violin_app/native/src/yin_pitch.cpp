@@ -9,6 +9,11 @@ struct YinResult {
     float confidence;
 };
 
+struct StrobeResult {
+    float phase;
+    float confidence;
+};
+
 YinResult yin_detect(const float* samples, int n_samples, int sample_rate) {
     YinResult result = {0.0f, 0.0f};
     if (n_samples < 256) return result;
@@ -66,6 +71,29 @@ YinResult yin_detect(const float* samples, int n_samples, int sample_rate) {
     delete[] diff;
     delete[] cum_mean;
     return result;
+}
+
+// Stroboscopic tuner: phase comparison at a reference frequency.
+// Returns phase 0~1. Phase change rate = frequency error.
+// Phase_stable = in tune; phase_increasing = sharp; phase_decreasing = flat.
+StrobeResult strobe_detect(const float* samples, int n,
+                            float ref_freq, int sample_rate) {
+    StrobeResult r = {0.0f, 0.0f};
+    if (n < 64 || ref_freq <= 0) return r;
+
+    float I = 0, Q = 0;
+    for (int i = 0; i < n; i++) {
+        float t = (float)i / sample_rate;
+        float angle = 2.0f * 3.14159265f * ref_freq * t;
+        I += samples[i] * cosf(angle);
+        Q += samples[i] * sinf(angle);
+    }
+    float phase = atan2f(Q, I) / (2.0f * 3.14159265f);
+    if (phase < 0) phase += 1.0f;
+    float magnitude = sqrtf(I * I + Q * Q) / (n / 2);
+    r.phase = phase;
+    r.confidence = magnitude;
+    return r;
 }
 
 } // extern "C"

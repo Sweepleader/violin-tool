@@ -21,6 +21,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   final _sm = TunerStateMachine();
   bool _listening = false;
   bool _demoMode = false;
+  bool _strobeMode = false;
   String? _error;
   InstrumentConfig _instrument = InstrumentConfig.violin;
 
@@ -172,7 +173,13 @@ class _TunerPageState extends ConsumerState<TunerPage> {
                 ]),
               )
             : hasSignal
-                ? PitchDisplay(sm: _sm, instrument: _instrument)
+                ? PitchDisplay(
+                    sm: _sm,
+                    instrument: _instrument,
+                    strobeMode: _strobeMode,
+                    onToggleMode: () =>
+                        setState(() => _strobeMode = !_strobeMode),
+                  )
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.mic_none, size: 48,
                         color: theme.colorScheme.onSurface.withAlpha(80)),

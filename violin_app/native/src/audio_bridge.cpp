@@ -11,7 +11,9 @@
 // Forward declarations from yin_pitch.cpp
 extern "C" {
 struct YinResult { float frequency; float confidence; };
+struct StrobeResult { float phase; float confidence; };
 YinResult yin_detect(const float* samples, int n_samples, int sample_rate);
+StrobeResult strobe_detect(const float* samples, int n, float ref_freq, int sample_rate);
 }
 
 // Forward declarations from metronome_engine.cpp
@@ -117,6 +119,16 @@ EXPORT YinResult audio_poll_pitch(int32_t sample_rate) {
 EXPORT int32_t audio_generate_click(float* buffer, int32_t sample_rate,
                                     float volume) {
     return metronome_generate_click(buffer, sample_rate, volume);
+}
+
+EXPORT StrobeResult audio_strobe_poll(float ref_freq, int32_t sample_rate) {
+    float buf[4096];
+    size_t n = g_ring.read(buf, 4096);
+    if (n < 64) {
+        StrobeResult r = {0.0f, 0.0f};
+        return r;
+    }
+    return strobe_detect(buf, (int)n, ref_freq, sample_rate);
 }
 
 } // extern "C"

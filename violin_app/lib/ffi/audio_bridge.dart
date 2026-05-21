@@ -15,11 +15,19 @@ typedef AudioAvailableNative = Int32 Function();
 typedef AudioAvailableDart = int Function();
 typedef PollPitchNative = YinResult Function(Int32);
 typedef PollPitchDart = YinResult Function(int);
+typedef StrobePollNative = StrobeResult Function(Float, Int32);
+typedef StrobePollDart = StrobeResult Function(double, int);
 
 final class YinResult extends Struct {
   @Float()
   external double frequency;
+  @Float()
+  external double confidence;
+}
 
+final class StrobeResult extends Struct {
+  @Float()
+  external double phase;
   @Float()
   external double confidence;
 }
@@ -31,6 +39,7 @@ class AudioBridge {
   late final int Function(Pointer<Float>, int) read;
   late final int Function() available;
   late final YinResult Function(int) pollPitch;
+  late final StrobeResult Function(double, int) strobePoll;
 
   static AudioBridge? _instance;
   static AudioBridge get instance => _instance ??= AudioBridge._();
@@ -47,6 +56,9 @@ class AudioBridge {
     pollPitch = lib
         .lookupFunction<PollPitchNative, PollPitchDart>(
             'audio_poll_pitch');
+    strobePoll = lib
+        .lookupFunction<StrobePollNative, StrobePollDart>(
+            'audio_strobe_poll');
   }
 
   static DynamicLibrary _openLibrary() {

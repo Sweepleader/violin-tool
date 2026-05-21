@@ -5,15 +5,20 @@ import '../instrument_config.dart';
 import '../tuner_state.dart';
 import 'note_wheel.dart';
 import 'string_wheel.dart';
+import 'strobe_display.dart';
 
 class PitchDisplay extends StatelessWidget {
   final TunerStateMachine sm;
   final InstrumentConfig instrument;
+  final bool strobeMode;
+  final VoidCallback? onToggleMode;
 
   const PitchDisplay({
     super.key,
     required this.sm,
     required this.instrument,
+    this.strobeMode = false,
+    this.onToggleMode,
   });
 
   @override
@@ -48,22 +53,38 @@ class PitchDisplay extends StatelessWidget {
             style: theme.textTheme.bodyLarge?.copyWith(color: color),
           ),
           const SizedBox(height: 16),
-          // ── Needle gauge ──
-          SizedBox(
-            height: 90,
-            width: MediaQuery.of(context).size.width * 0.618,
-            child: CustomPaint(
-              painter: _NeedlePainter(cents: sm.displayCents, color: color),
+          // ── Needle gauge / Strobe ──
+          if (strobeMode)
+            StrobeDisplay(refFrequency: sm.displayFrequency, color: color)
+          else
+            SizedBox(
+              height: 90,
+              width: MediaQuery.of(context).size.width * 0.618,
+              child: CustomPaint(
+                painter: _NeedlePainter(cents: sm.displayCents, color: color),
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           // ── Deviation ──
-          Text(
-            _deviationText(sm.displayCents),
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _deviationText(sm.displayCents),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (onToggleMode != null) ...[
+                const SizedBox(width: 16),
+                _ModeButton(
+                    label: 'Needle', active: !strobeMode, onTap: onToggleMode),
+                const SizedBox(width: 4),
+                _ModeButton(
+                    label: 'Strobe', active: strobeMode, onTap: onToggleMode),
+              ],
+            ],
           ),
         ],
       ),
@@ -74,6 +95,34 @@ class PitchDisplay extends StatelessWidget {
     final abs = cents.abs();
     if (abs < 2) return 'In Tune';
     return '${cents > 0 ? "+" : ""}${cents.toStringAsFixed(1)} \u{00A2}';
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback? onTap;
+  const _ModeButton(
+      {required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: active ? Colors.white.withAlpha(25) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+              color: active ? Colors.white.withAlpha(60) : Colors.grey.withAlpha(40)),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                color: active ? Colors.white : Colors.grey.withAlpha(120))),
+      ),
+    );
   }
 }
 
