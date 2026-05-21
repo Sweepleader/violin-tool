@@ -41,6 +41,9 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   Future<void> _startListening() async {
     setState(() => _error = null);
     final audio = _audio!;
+    // Ensure clean state before starting
+    await audio.stop();
+    _subscription?.cancel();
     _subscription = audio.pitchStream.listen((pitch) {
       _sm.feed(pitch);
       if (mounted) setState(() {});
