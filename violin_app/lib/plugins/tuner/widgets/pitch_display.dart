@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../tuner_state.dart';
+import 'rolling_note_text.dart';
 
 class PitchDisplay extends StatelessWidget {
   final TunerStateMachine sm;
@@ -76,12 +77,14 @@ class _NoteBlock extends StatelessWidget {
       child: Stack(
         children: [
           Center(
-            child: Text(name,
-                style: TextStyle(
-                    fontSize: 56,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                    height: 1)),
+            child: RollingNoteText(
+              text: name,
+              style: TextStyle(
+                  fontSize: 56,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                  height: 1),
+            ),
           ),
           if (octave.isNotEmpty)
             Positioned(
