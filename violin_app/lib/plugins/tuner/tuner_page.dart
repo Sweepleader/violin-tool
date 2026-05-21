@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/services/audio_engine.dart';
 import '../../core/services/providers.dart';
+import 'instrument_config.dart';
 import 'tuner_state.dart';
 import 'widgets/pitch_display.dart';
 
@@ -21,6 +22,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   bool _listening = false;
   bool _demoMode = false;
   String? _error;
+  InstrumentConfig _instrument = InstrumentConfig.violin;
 
   @override
   void dispose() {
@@ -110,7 +112,31 @@ class _TunerPageState extends ConsumerState<TunerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tuner'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Tuner'),
+            const SizedBox(width: 8),
+            DropdownButtonHideUnderline(
+              child: DropdownButton<InstrumentConfig>(
+                value: _instrument,
+                items: InstrumentConfig.all
+                    .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.name,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: theme.colorScheme.onPrimary))))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => _instrument = v);
+                },
+                dropdownColor: theme.colorScheme.primary,
+                style: TextStyle(color: theme.colorScheme.onPrimary),
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (_listening)
             Container(
@@ -146,7 +172,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
                 ]),
               )
             : hasSignal
-                ? PitchDisplay(sm: _sm)
+                ? PitchDisplay(sm: _sm, instrument: _instrument)
                 : Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.mic_none, size: 48,
                         color: theme.colorScheme.onSurface.withAlpha(80)),

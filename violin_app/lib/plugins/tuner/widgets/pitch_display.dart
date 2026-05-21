@@ -1,13 +1,20 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../instrument_config.dart';
 import '../tuner_state.dart';
 import 'note_wheel.dart';
+import 'string_wheel.dart';
 
 class PitchDisplay extends StatelessWidget {
   final TunerStateMachine sm;
+  final InstrumentConfig instrument;
 
-  const PitchDisplay({super.key, required this.sm});
+  const PitchDisplay({
+    super.key,
+    required this.sm,
+    required this.instrument,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,15 +23,22 @@ class PitchDisplay extends StatelessWidget {
     final color = s == TunerState.inTune
         ? AppColors.pitchInTune
         : s == TunerState.locked
-            ? const Color(0xFF534AB7)
+            ? AppColors.tunerLocked
             : s == TunerState.detecting
-                ? const Color(0xFF1D9E75)
+                ? AppColors.tunerDetect
                 : Colors.grey;
 
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // ── String wheel ──
+          StringWheel(
+            frequency: sm.displayFrequency,
+            color: color,
+            instrument: instrument,
+          ),
+          const SizedBox(height: 4),
           // ── Note wheel ──
           NoteWheel(currentNote: sm.noteDisplay, color: color),
           const SizedBox(height: 4),
@@ -34,7 +48,7 @@ class PitchDisplay extends StatelessWidget {
             style: theme.textTheme.bodyLarge?.copyWith(color: color),
           ),
           const SizedBox(height: 16),
-          // ── Needle gauge — 0.618 × window width ──
+          // ── Needle gauge ──
           SizedBox(
             height: 90,
             width: MediaQuery.of(context).size.width * 0.618,
@@ -59,7 +73,7 @@ class PitchDisplay extends StatelessWidget {
   String _deviationText(double cents) {
     final abs = cents.abs();
     if (abs < 2) return 'In Tune';
-    return '${cents > 0 ? "+" : ""}${cents.toStringAsFixed(1)} ¢';
+    return '${cents > 0 ? "+" : ""}${cents.toStringAsFixed(1)} \u{00A2}';
   }
 }
 
@@ -77,9 +91,10 @@ class _NeedlePainter extends CustomPainter {
     final maxAngle = pi / 3;
     final angle = (cents / 50.0).clamp(-1.0, 1.0) * maxAngle;
 
-    // ✓ zone
+    // In-tune zone
     canvas.drawRect(
-      Rect.fromCenter(center: Offset(centerX, bottomY - 4), width: 20, height: 8),
+      Rect.fromCenter(
+          center: Offset(centerX, bottomY - 4), width: 20, height: 8),
       Paint()..color = AppColors.pitchInTune.withAlpha(60),
     );
 
@@ -117,8 +132,6 @@ class _NeedlePainter extends CustomPainter {
       Offset(centerX + dx, pivotY + dy),
       Paint()..color = color..strokeWidth = 2.5..strokeCap = StrokeCap.round,
     );
-
-    // Pivot
     canvas.drawCircle(
       Offset(centerX, pivotY), 4,
       Paint()..color = color..style = PaintingStyle.stroke..strokeWidth = 2,
