@@ -17,6 +17,7 @@ class TunerPage extends ConsumerStatefulWidget {
 class _TunerPageState extends ConsumerState<TunerPage> {
   StreamSubscription<PitchResult>? _subscription;
   final _sm = TunerStateMachine();
+  AudioEngine? _audio; // captured in initState for dispose safety
   bool _listening = false;
   bool _strobeMode = false;
   String? _error;
@@ -25,23 +26,21 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
+    _audio = ref.read(audioEngineProvider);
+    // Defer past frame cycle to avoid FFI scheduler crash
+    Future.microtask(_startListening);
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
-    _stopAudio();
+    _audio?.stop();
     super.dispose();
-  }
-
-  void _stopAudio() {
-    ref.read(audioEngineProvider).stop();
   }
 
   Future<void> _startListening() async {
     setState(() => _error = null);
-    final audio = ref.read(audioEngineProvider);
+    final audio = _audio!;
     _subscription = audio.pitchStream.listen((pitch) {
       _sm.feed(pitch);
       if (mounted) setState(() {});
@@ -55,7 +54,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   }
 
   void _toggleListening() {
-    final audio = ref.read(audioEngineProvider);
+    final audio = _audio!;
     if (_listening) {
       audio.stop();
       _subscription?.cancel();
