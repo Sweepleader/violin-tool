@@ -183,7 +183,7 @@ int platform_audio_start(RingBuffer* ring) {
         return -1;
     }
 
-    for (int i = 0; i < 50; ++i) {
+    for (int i = 0; i < 150; ++i) {
         Sleep(10);
         if (g_capture_ok.load(std::memory_order_acquire)) return 0;
     }
