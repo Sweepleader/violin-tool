@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>调音器 UI 架构图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'SF Pro Display', 'PingFang SC', 'Segoe UI', sans-serif;
+    background: #0f0f11;
+    color: #e8e6e0;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6b6960;
+    margin-bottom: 40px;
+  }
+
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* ── Top section: phone + state machine ── */
+  .top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+
+  /* ── Phone mockup ── */
+  .phone-wrap {
+    display: flex;
+    justify-content: center;
+  }
+  .phone {
+    width: 220px;
+    background: #18181c;
+    border: 1.5px solid #2e2e36;
+    border-radius: 28px;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Note display */
+  .note-block {
+    background: #1e1b38;
+    border: 0.5px solid #3f3a7a;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    position: relative;
+  }
+  .note-name {
+    font-size: 52px;
+    font-weight: 600;
+    color: #a09ae0;
+    line-height: 1;
+    letter-spacing: -2px;
+  }
+  .note-meta {
+    font-size: 11px;
+    color: #7570b8;
+    margin-top: 6px;
+  }
+  .octave-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #13112a;
+    border: 0.5px solid #3f3a7a;
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 11px;
+    color: #8c87c8;
+  }
+
+  /* Needle */
+  .needle-block {
+    background: #141416;
+    border: 0.5px solid #2a2a30;
+    border-radius: 12px;
+    padding: 12px 14px 8px;
+  }
+  .needle-svg-wrap {
+    width: 100%;
+    height: 80px;
+  }
+
+  /* Frequency strip */
+  .freq-block {
+    background: #141416;
+    border: 0.5px solid #2a2a30;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .chromatic-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .chroma-note {
+    font-size: 10px;
+    color: #5a5860;
+    width: 18px;
+    text-align: center;
+    padding: 2px 0;
+    border-radius: 4px;
+  }
+  .chroma-note.active {
+    background: #534ab7;
+    color: #c5c1f0;
+    font-weight: 500;
+  }
+  .freq-value {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+    color: #c8c5e8;
+    letter-spacing: 0.04em;
+  }
+
+  /* Status bar */
+  .status-bar {
+    background: #0e2820;
+    border: 0.5px solid #1d9e75;
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    font-size: 12px;
+    color: #5dcaa5;
+    letter-spacing: 0.06em;
+  }
+
+  /* ── State machine ── */
+  .state-machine {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .sm-title {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: #6b6960;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+  .sm-states {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .sm-state {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+  }
+  .state-pill {
+    width: 100px;
+    padding: 8px 0;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    border: 0.5px solid transparent;
+    flex-shrink: 0;
+  }
+  .state-pill.idle    { background: #1e1e22; border-color: #3a3a40; color: #888780; }
+  .state-pill.detect  { background: #0d2528; border-color: #1d9e75; color: #5dcaa5; }
+  .state-pill.locked  { background: #1e1b38; border-color: #534ab7; color: #a09ae0; }
+  .state-pill.intune  { background: #1a2210; border-color: #639922; color: #97c459; }
+
+  .state-label {
+    font-size: 11px;
+    color: #555350;
+  }
+  .sm-arrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 0;
+    margin-left: 20px;
+  }
+  .sm-arrow-line {
+    width: 1px;
+    height: 22px;
+    background: #2e2e36;
+    margin-left: 49px;
+  }
+  .sm-arrow-cond {
+    font-size: 11px;
+    color: #46443f;
+    margin-left: 62px;
+    margin-top: -8px;
+    margin-bottom: 2px;
+  }
+
+  /* ── Data flow ── */
+  .flow-section {
+    border-top: 0.5px solid #1e1e24;
+    padding-top: 32px;
+  }
+  .flow-title {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: #6b6960;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .flow-node {
+    flex-shrink: 0;
+    background: #18181c;
+    border: 0.5px solid #2e2e36;
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 130px;
+  }
+  .flow-node.teal   { background: #0d2528; border-color: #1d9e75; }
+  .flow-node.purple { background: #1e1b38; border-color: #534ab7; }
+  .flow-node-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #c8c5e0;
+    margin-bottom: 3px;
+  }
+  .flow-node.teal   .flow-node-label { color: #5dcaa5; }
+  .flow-node.purple .flow-node-label { color: #a09ae0; }
+  .flow-node-sub {
+    font-size: 11px;
+    color: #5a5860;
+  }
+  .flow-node.teal   .flow-node-sub { color: #2e7a5a; }
+  .flow-node.purple .flow-node-sub { color: #6662a8; }
+
+  .flow-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 0 4px;
+  }
+  .flow-arrow-payload {
+    font-size: 10px;
+    color: #3e3c38;
+    white-space: nowrap;
+    margin-bottom: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+  .flow-arrow-line {
+    width: 32px;
+    height: 1px;
+    background: #2e2e36;
+    position: relative;
+  }
+  .flow-arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: -3px;
+    border: 3px solid transparent;
+    border-left: 5px solid #2e2e36;
+  }
+
+  .flow-note {
+    text-align: center;
+    font-size: 11px;
+    color: #3e3c38;
+    margin-top: 14px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+</style>
+</head>
+<body>
+
+<h1>调音器 UI 架构</h1>
+
+<div class="page">
+
+  <!-- Top: phone + state machine -->
+  <div class="top-row">
+
+    <!-- Phone mockup -->
+    <div class="phone-wrap">
+      <div class="phone">
+
+        <!-- Note block -->
+        <div class="note-block">
+          <div class="octave-badge">4</div>
+          <div class="note-name">A</div>
+          <div class="note-meta">octave 4 · 440 Hz</div>
+        </div>
+
+        <!-- Needle -->
+        <div class="needle-block">
+          <div class="needle-svg-wrap">
+            <svg width="100%" height="80" viewBox="0 0 192 80">
+              <!-- Scale baseline -->
+              <line x1="10" y1="62" x2="182" y2="62" stroke="#2a2a30" stroke-width="0.5"/>
+              <!-- Ticks -->
+              <line x1="96" y1="50" x2="96" y2="62" stroke="#1d9e75" stroke-width="2" stroke-linecap="round"/>
+              <line x1="56" y1="55" x2="56" y2="62" stroke="#3a3a40" stroke-width="0.5"/>
+              <line x1="136" y1="55" x2="136" y2="62" stroke="#3a3a40" stroke-width="0.5"/>
+              <line x1="36" y1="58" x2="36" y2="62" stroke="#2e2e36" stroke-width="0.5"/>
+              <line x1="156" y1="58" x2="156" y2="62" stroke="#2e2e36" stroke-width="0.5"/>
+              <!-- Needle (slightly sharp, amber) -->
+              <line x1="96" y1="20" x2="118" y2="60" stroke="#ba7517" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="96" cy="20" r="4" fill="#18181c" stroke="#ba7517" stroke-width="1.5"/>
+              <!-- Deviation label -->
+              <text x="96" y="13" text-anchor="middle" font-size="10" fill="#ba7517" font-family="SF Mono, Fira Code, monospace">+8¢</text>
+              <!-- Scale labels -->
+              <text x="10"  y="74" text-anchor="middle" font-size="9" fill="#46443f">-50</text>
+              <text x="96"  y="74" text-anchor="middle" font-size="9" fill="#46443f">0</text>
+              <text x="182" y="74" text-anchor="middle" font-size="9" fill="#46443f">+50</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Frequency / chromatic -->
+        <div class="freq-block">
+          <div class="chromatic-row">
+            <span class="chroma-note">G</span>
+            <span class="chroma-note">A♭</span>
+            <span class="chroma-note active">A</span>
+            <span class="chroma-note">B♭</span>
+            <span class="chroma-note">B</span>
+            <span class="chroma-note">C</span>
+            <span class="chroma-note">D♭</span>
+            <span class="chroma-note">D</span>
+            <span class="chroma-note">E♭</span>
+          </div>
+          <div class="freq-value">438.2 Hz</div>
+        </div>
+
+        <!-- Status -->
+        <div class="status-bar">Listening…</div>
+
+      </div>
+    </div>
+
+    <!-- State machine -->
+    <div class="state-machine">
+      <div class="sm-title">UI 状态机</div>
+      <div class="sm-states">
+
+        <div class="sm-state">
+          <div class="state-pill idle">idle</div>
+          <div class="state-label">无输入 / 静音</div>
+        </div>
+        <div class="sm-arrow-line"></div>
+        <div class="sm-arrow-cond">conf &gt; 0</div>
+
+        <div class="sm-state">
+          <div class="state-pill detect">detecting</div>
+          <div class="state-label">检测到信号，候选音符闪烁</div>
+        </div>
+        <div class="sm-arrow-line"></div>
+        <div class="sm-arrow-cond">稳定连续 3 帧</div>
+
+        <div class="sm-state">
+          <div class="state-pill locked">locked</div>
+          <div class="state-label">音符锁定，指针平滑移动</div>
+        </div>
+        <div class="sm-arrow-line"></div>
+        <div class="sm-arrow-cond">|偏差| &lt; 2¢ 持续 5 帧</div>
+
+        <div class="sm-state">
+          <div class="state-pill intune">in-tune ✓</div>
+          <div class="state-label">绿色反馈，居中确认</div>
+        </div>
+
+        <div style="margin-top:16px; padding:10px 12px; background:#141416; border:0.5px solid #2a2a30; border-radius:8px; font-size:11px; color:#46443f; line-height:1.7;">
+          任意状态 → <span style="color:#3a3a40">idle</span><br>
+          条件：静音超过 1s<br><br>
+          <span style="color:#3e3c38; font-family:'SF Mono','Fira Code',monospace;">in-tune 判断：连续 5 帧 |cents| &lt; 2.0</span><br>
+          <span style="color:#3e3c38; font-family:'SF Mono','Fira Code',monospace;">避免指针掠过零点误触发</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Data flow -->
+  <div class="flow-section">
+    <div class="flow-title">数据流 · C 层 → Dart</div>
+    <div class="flow-row">
+
+      <div class="flow-node">
+        <div class="flow-node-label">C / MPM</div>
+        <div class="flow-node-sub">基频检测</div>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="flow-arrow-payload">{f, conf}</div>
+        <div class="flow-arrow-line"></div>
+      </div>
+
+      <div class="flow-node">
+        <div class="flow-node-label">C / filter</div>
+        <div class="flow-node-sub">平滑 + 置信度</div>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="flow-arrow-payload">{f_smooth}</div>
+        <div class="flow-arrow-line"></div>
+      </div>
+
+      <div class="flow-node teal">
+        <div class="flow-node-label">Dart Isolate</div>
+        <div class="flow-node-sub">音符映射</div>
+      </div>
+
+      <div class="flow-arrow">
+        <div class="flow-arrow-payload">{note, cents}</div>
+        <div class="flow-arrow-line"></div>
+      </div>
+
+      <div class="flow-node purple">
+        <div class="flow-node-label">UI Isolate</div>
+        <div class="flow-node-sub">状态机 + 渲染</div>
+      </div>
+
+    </div>
+    <div class="flow-note">
+      每 25ms 轮询一次 · UI 只接收最终 {note, cents, state}，不做计算
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

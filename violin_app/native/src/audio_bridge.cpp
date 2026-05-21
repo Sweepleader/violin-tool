@@ -61,6 +61,25 @@ EXPORT YinResult audio_analyze_pitch(const float* samples,
 }
 
 // Read from RingBuffer and run YIN in one call — no Dart-side memory allocation
+// Smoothing state — retained across calls
+namespace {
+    float g_freq_history[5] = {0};
+    int g_freq_idx = 0;
+    float g_ema_freq = 0;
+    float g_ema_conf = 0;
+    bool g_smoothing_init = false;
+}
+
+static float median5(float a[5]) {
+    float b[5];
+    for (int i = 0; i < 5; i++) b[i] = a[i];
+    // Simple sort for 5 elements
+    for (int i = 0; i < 4; i++)
+        for (int j = i + 1; j < 5; j++)
+            if (b[i] > b[j]) { float t = b[i]; b[i] = b[j]; b[j] = t; }
+    return b[2];
+}
+
 EXPORT YinResult audio_poll_pitch(int32_t sample_rate) {
     float buf[4096];
     size_t n = g_ring.read(buf, 4096);
@@ -68,7 +87,31 @@ EXPORT YinResult audio_poll_pitch(int32_t sample_rate) {
         YinResult r = {0.0f, 0.0f};
         return r;
     }
-    return yin_detect(buf, (int)n, sample_rate);
+    YinResult raw = yin_detect(buf, (int)n, sample_rate);
+    if (raw.confidence < 0.85f) {
+        // Low confidence — still return raw, but don't update EMA
+        return raw;
+    }
+
+    // Median filter: store raw in ring buffer, take median of last 5
+    g_freq_history[g_freq_idx % 5] = raw.frequency;
+    g_freq_idx++;
+    float med_freq = median5(g_freq_history);
+
+    // EMA smoothing
+    const float alpha = 0.15f;
+    float smoothed_conf = raw.confidence;
+    if (!g_smoothing_init) {
+        g_ema_freq = med_freq;
+        g_ema_conf = raw.confidence;
+        g_smoothing_init = true;
+    } else {
+        g_ema_freq = alpha * med_freq + (1.0f - alpha) * g_ema_freq;
+        g_ema_conf = alpha * raw.confidence + (1.0f - alpha) * g_ema_conf;
+    }
+
+    YinResult out = {g_ema_freq, g_ema_conf};
+    return out;
 }
 
 EXPORT int32_t audio_generate_click(float* buffer, int32_t sample_rate,
