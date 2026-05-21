@@ -44,6 +44,7 @@ class AudioEngine {
     if (_bridge == null) return;
     final result = _bridge.start();
     if (result == -2) throw Exception('No microphone found');
+    if (result == -3) throw Exception('Microphone started but capture failed. Check audio format support.');
     if (result != 0) throw Exception('audio_start failed: $result');
 
     final receivePort = ReceivePort();

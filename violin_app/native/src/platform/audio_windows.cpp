@@ -11,74 +11,85 @@ namespace {
 
 RingBuffer* g_ring = nullptr;
 std::atomic<bool> g_running{false};
+std::atomic<bool> g_capture_alive{false};
 std::thread g_thread;
 int g_sample_rate = 44100;
 
 void capture_loop(IMMDevice* device) {
     try {
-        // COM must be initialized on THIS thread
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        bool comOwned = SUCCEEDED(hr);
+        bool comOwned = SUCCEEDED(hr) || hr == S_FALSE;
         if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
 
         IAudioClient* client = nullptr;
         hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
                               (void**)&client);
-        if (FAILED(hr)) {
-            if (comOwned) CoUninitialize();
-            return;
-        }
+        if (FAILED(hr)) { if (comOwned) CoUninitialize(); return; }
 
         WAVEFORMATEX* pwfx = nullptr;
         client->GetMixFormat(&pwfx);
-        pwfx->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
-        pwfx->nChannels = 1;
-        pwfx->wBitsPerSample = 32;
-        pwfx->nBlockAlign = 4;
-        pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * 4;
+        // Do NOT modify format in shared mode — accept what the device gives
+        int nChannels = pwfx->nChannels;
+        bool isFloat = (pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT);
+        if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+            auto* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pwfx);
+            isFloat = (ext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
+        }
 
         REFERENCE_TIME hnsRequested = 100000;
         hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
             0, hnsRequested, 0, pwfx, nullptr);
+        CoTaskMemFree(pwfx);
         if (FAILED(hr)) {
-            client->Release();
-            device->Release();
+            client->Release(); device->Release();
             if (comOwned) CoUninitialize();
             return;
         }
 
-        UINT32 bufferFrameCount;
-        client->GetBufferSize(&bufferFrameCount);
-
         IAudioCaptureClient* capture = nullptr;
         client->GetService(__uuidof(IAudioCaptureClient), (void**)&capture);
         client->Start();
+        g_capture_alive.store(true);
 
         while (g_running.load(std::memory_order_relaxed)) {
             Sleep(5);
-            UINT32 packetLength = 0;
-            capture->GetNextPacketSize(&packetLength);
-            while (packetLength > 0) {
-                float* data;
-                UINT32 numFrames;
-                DWORD flags;
-                capture->GetBuffer((BYTE**)&data, &numFrames, &flags,
-                                   nullptr, nullptr);
-                if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT))
-                    g_ring->write(data, numFrames);
-                capture->ReleaseBuffer(numFrames);
-                capture->GetNextPacketSize(&packetLength);
+            UINT32 pktLen = 0;
+            capture->GetNextPacketSize(&pktLen);
+            while (pktLen > 0) {
+                BYTE* rawData; UINT32 nFrames; DWORD flags;
+                capture->GetBuffer(&rawData, &nFrames, &flags, nullptr, nullptr);
+                if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
+                    std::vector<float> mono(nFrames);
+                    if (isFloat) {
+                        auto* src = reinterpret_cast<float*>(rawData);
+                        for (UINT32 i = 0; i < nFrames; ++i) {
+                            float sum = 0;
+                            for (int ch = 0; ch < nChannels; ++ch)
+                                sum += src[i * nChannels + ch];
+                            mono[i] = sum / nChannels;
+                        }
+                    } else {
+                        // Int16 fallback
+                        auto* src = reinterpret_cast<short*>(rawData);
+                        for (UINT32 i = 0; i < nFrames; ++i) {
+                            float sum = 0;
+                            for (int ch = 0; ch < nChannels; ++ch)
+                                sum += src[i * nChannels + ch] / 32768.0f;
+                            mono[i] = sum / nChannels;
+                        }
+                    }
+                    g_ring->write(mono.data(), nFrames);
+                }
+                capture->ReleaseBuffer(nFrames);
+                capture->GetNextPacketSize(&pktLen);
             }
         }
 
         client->Stop();
-        capture->Release();
-        client->Release();
-        device->Release();
+        capture->Release(); client->Release(); device->Release();
         if (comOwned) CoUninitialize();
-    } catch (...) {
-        // Prevent abort() — silently exit capture thread
-    }
+    } catch (...) {}
+    g_capture_alive.store(false);
 }
 
 } // anonymous namespace
@@ -109,13 +120,19 @@ int platform_audio_start(RingBuffer* ring) {
     enumerator->Release();
     if (FAILED(hr)) return -2;  // -2 = no microphone found
 
+    g_capture_alive.store(false);
     try {
         g_thread = std::thread(capture_loop, device);
-        return g_thread.joinable() ? 0 : -1;
     } catch (...) {
         g_running.store(false);
         return -1;
     }
+    // Wait up to 500ms for capture to confirm alive
+    for (int i = 0; i < 50; ++i) {
+        Sleep(10);
+        if (g_capture_alive.load()) return 0;
+    }
+    return -3;  // thread started but WASAPI init failed
 }
 
 void platform_audio_stop() {
