@@ -76,7 +76,7 @@ class _TunerPageState extends ConsumerState<TunerPage> {
     int noteIdx = 0;
     int noteTicks = 0;
 
-    _demoTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+    _demoTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       tick++;
       noteTicks++;
 

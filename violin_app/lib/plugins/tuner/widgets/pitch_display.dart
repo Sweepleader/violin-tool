@@ -41,14 +41,16 @@ class PitchDisplay extends StatelessWidget {
         SizedBox(
           height: 120,
           child: ClipRect(
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: _PitchCurvePainter(
-                history: history,
-                maxCents: maxCents,
-                inTuneColor: AppColors.pitchInTune,
-                sharpColor: AppColors.pitchSharp,
-                flatColor: AppColors.pitchFlat,
+            child: RepaintBoundary(
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _PitchCurvePainter(
+                  history: history,
+                  maxCents: maxCents,
+                  inTuneColor: AppColors.pitchInTune,
+                  sharpColor: AppColors.pitchSharp,
+                  flatColor: AppColors.pitchFlat,
+                ),
               ),
             ),
           ),
