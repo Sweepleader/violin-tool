@@ -55,7 +55,12 @@ class PitchDisplay extends StatelessWidget {
           const SizedBox(height: 16),
           // ── Needle gauge / Strobe ──
           if (strobeMode)
-            StrobeDisplay(refFrequency: sm.displayFrequency, color: color)
+            StrobeDisplay(
+              refFrequency:
+                  instrument.stringFreqs[instrument.stringNames.indexOf(
+                      instrument.closestString(sm.displayFrequency))],
+              color: color,
+            )
           else
             SizedBox(
               height: 90,

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../ffi/audio_bridge.dart';
 
 /// Stroboscopic tuner display — phase-driven scrolling stripes.
@@ -20,9 +19,8 @@ class StrobeDisplay extends StatefulWidget {
   State<StrobeDisplay> createState() => _StrobeDisplayState();
 }
 
-class _StrobeDisplayState extends State<StrobeDisplay>
-    with SingleTickerProviderStateMixin {
-  double _phase = 0;
+class _StrobeDisplayState extends State<StrobeDisplay> {
+  Timer? _timer;
   double _prevRawPhase = 0;
   double _stripeOffset = 0;
   bool _initialized = false;
@@ -33,8 +31,14 @@ class _StrobeDisplayState extends State<StrobeDisplay>
     _startPolling();
   }
 
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   void _startPolling() {
-    Timer.periodic(const Duration(milliseconds: 30), (_) {
+    _timer = Timer.periodic(const Duration(milliseconds: 30), (_) {
       if (!mounted) return;
       final bridge = AudioBridge.instance;
       final result = bridge.strobePoll(widget.refFrequency, 44100);
@@ -53,7 +57,6 @@ class _StrobeDisplayState extends State<StrobeDisplay>
       _prevRawPhase = raw;
 
       setState(() {
-        _phase = raw;
         _stripeOffset += delta * 20; // scale to visible pixel movement
         if (_stripeOffset > 100) _stripeOffset -= 100;
         if (_stripeOffset < -100) _stripeOffset += 100;
