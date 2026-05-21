@@ -1,95 +1,146 @@
 #define NOMINMAX
+#define INITGUID
 #include <windows.h>
 #include <audioclient.h>
 #include <mmdeviceapi.h>
+#include <ksmedia.h>
 #include <functiondiscoverykeys_devpkey.h>
 #include <atomic>
 #include <thread>
+#include <vector>
+#include <algorithm>
 #include "ring_buffer.h"
 
 namespace {
 
 RingBuffer* g_ring = nullptr;
 std::atomic<bool> g_running{false};
-std::atomic<bool> g_capture_alive{false};
+std::atomic<bool> g_capture_ok{false};
 std::thread g_thread;
 int g_sample_rate = 44100;
+
+struct CaptureFormat {
+    int channels = 2;
+    bool is_float = false;
+    bool is_int16 = false;
+    bool is_int32 = false;
+};
+
+CaptureFormat parse_format(const WAVEFORMATEX* wfx) {
+    CaptureFormat fmt;
+    fmt.channels = wfx->nChannels;
+    if (wfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
+        fmt.is_float = true;
+    } else if (wfx->wFormatTag == WAVE_FORMAT_PCM) {
+        if (wfx->wBitsPerSample == 16) fmt.is_int16 = true;
+        if (wfx->wBitsPerSample == 32) fmt.is_int32 = true;
+    } else if (wfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+        const auto* ext = reinterpret_cast<const WAVEFORMATEXTENSIBLE*>(wfx);
+        if (ext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT) {
+            fmt.is_float = true;
+        } else if (ext->SubFormat == KSDATAFORMAT_SUBTYPE_PCM) {
+            if (wfx->wBitsPerSample == 16) fmt.is_int16 = true;
+            if (wfx->wBitsPerSample == 32) fmt.is_int32 = true;
+        }
+    }
+    return fmt;
+}
+
+inline float frame_to_mono(const BYTE* src, int ch, int total_channels,
+                            const CaptureFormat& fmt) {
+    if (fmt.is_float)
+        return reinterpret_cast<const float*>(src)[ch];
+    if (fmt.is_int16)
+        return reinterpret_cast<const int16_t*>(src)[ch] / 32768.0f;
+    if (fmt.is_int32)
+        return reinterpret_cast<const int32_t*>(src)[ch] / 2147483648.0f;
+    return 0.f;
+}
 
 void capture_loop(IMMDevice* device) {
     try {
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-        bool comOwned = SUCCEEDED(hr) || hr == S_FALSE;
-        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return;
+        const bool com_owned = (SUCCEEDED(hr) || hr == S_FALSE);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) { device->Release(); return; }
 
         IAudioClient* client = nullptr;
-        hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                              (void**)&client);
-        if (FAILED(hr)) { if (comOwned) CoUninitialize(); return; }
+        hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL,
+                              nullptr, (void**)&client);
+        device->Release();
+        if (FAILED(hr)) { if (com_owned) CoUninitialize(); return; }
 
         WAVEFORMATEX* pwfx = nullptr;
         client->GetMixFormat(&pwfx);
-        // Do NOT modify format in shared mode — accept what the device gives
-        int nChannels = pwfx->nChannels;
-        bool isFloat = (pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT);
-        if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
-            auto* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pwfx);
-            isFloat = (ext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT);
-        }
+        const CaptureFormat fmt = parse_format(pwfx);
 
-        REFERENCE_TIME hnsRequested = 100000;
         hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
-            0, hnsRequested, 0, pwfx, nullptr);
+                                0, 200000, 0, pwfx, nullptr);
         CoTaskMemFree(pwfx);
         if (FAILED(hr)) {
-            client->Release(); device->Release();
-            if (comOwned) CoUninitialize();
+            client->Release();
+            if (com_owned) CoUninitialize();
             return;
         }
 
         IAudioCaptureClient* capture = nullptr;
-        client->GetService(__uuidof(IAudioCaptureClient), (void**)&capture);
-        client->Start();
-        g_capture_alive.store(true);
+        hr = client->GetService(__uuidof(IAudioCaptureClient), (void**)&capture);
+        if (FAILED(hr)) {
+            client->Release();
+            if (com_owned) CoUninitialize();
+            return;
+        }
+
+        hr = client->Start();
+        if (FAILED(hr)) {
+            capture->Release(); client->Release();
+            if (com_owned) CoUninitialize();
+            return;
+        }
+
+        g_capture_ok.store(true, std::memory_order_release);
+
+        std::vector<float> mono_buf;
+        mono_buf.reserve(4096);
 
         while (g_running.load(std::memory_order_relaxed)) {
             Sleep(5);
-            UINT32 pktLen = 0;
-            capture->GetNextPacketSize(&pktLen);
-            while (pktLen > 0) {
-                BYTE* rawData; UINT32 nFrames; DWORD flags;
-                capture->GetBuffer(&rawData, &nFrames, &flags, nullptr, nullptr);
-                if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
-                    std::vector<float> mono(nFrames);
-                    if (isFloat) {
-                        auto* src = reinterpret_cast<float*>(rawData);
-                        for (UINT32 i = 0; i < nFrames; ++i) {
-                            float sum = 0;
-                            for (int ch = 0; ch < nChannels; ++ch)
-                                sum += src[i * nChannels + ch];
-                            mono[i] = sum / nChannels;
+            UINT32 pkt = 0;
+            capture->GetNextPacketSize(&pkt);
+            while (pkt > 0) {
+                BYTE* raw_data = nullptr;
+                UINT32 n_frames = 0;
+                DWORD flags = 0;
+                hr = capture->GetBuffer(&raw_data, &n_frames, &flags,
+                                        nullptr, nullptr);
+                if (SUCCEEDED(hr)) {
+                    if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT) && n_frames > 0) {
+                        mono_buf.resize(n_frames);
+                        const int stride = fmt.channels;
+                        if (fmt.channels == 1 && fmt.is_float) {
+                            std::memcpy(mono_buf.data(), raw_data,
+                                        n_frames * sizeof(float));
+                        } else {
+                            for (UINT32 i = 0; i < n_frames; ++i) {
+                                float sum = 0.f;
+                                for (int ch = 0; ch < stride; ++ch)
+                                    sum += frame_to_mono(
+                                        raw_data + i * stride * sizeof(float),
+                                        ch, stride, fmt);
+                                mono_buf[i] = sum / stride;
+                            }
                         }
-                    } else {
-                        // Int16 fallback
-                        auto* src = reinterpret_cast<short*>(rawData);
-                        for (UINT32 i = 0; i < nFrames; ++i) {
-                            float sum = 0;
-                            for (int ch = 0; ch < nChannels; ++ch)
-                                sum += src[i * nChannels + ch] / 32768.0f;
-                            mono[i] = sum / nChannels;
-                        }
+                        g_ring->write(mono_buf.data(), n_frames);
                     }
-                    g_ring->write(mono.data(), nFrames);
+                    capture->ReleaseBuffer(n_frames);
                 }
-                capture->ReleaseBuffer(nFrames);
-                capture->GetNextPacketSize(&pktLen);
+                capture->GetNextPacketSize(&pkt);
             }
         }
 
         client->Stop();
-        capture->Release(); client->Release(); device->Release();
-        if (comOwned) CoUninitialize();
+        capture->Release(); client->Release();
+        if (com_owned) CoUninitialize();
     } catch (...) {}
-    g_capture_alive.store(false);
 }
 
 } // anonymous namespace
@@ -103,10 +154,14 @@ int platform_audio_init(int sample_rate, int /*frames_per_buffer*/) {
 
 int platform_audio_start(RingBuffer* ring) {
     if (!ring) return -1;
+    if (g_thread.joinable()) {
+        g_running.store(false);
+        g_thread.join();
+    }
     g_ring = ring;
+    g_capture_ok.store(false);
     g_running.store(true);
 
-    // COM may already be initialized by Flutter or the capture thread
     HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(hr) && hr != RPC_E_CHANGED_MODE && hr != S_FALSE) return -1;
 
@@ -118,26 +173,31 @@ int platform_audio_start(RingBuffer* ring) {
     IMMDevice* device = nullptr;
     hr = enumerator->GetDefaultAudioEndpoint(eCapture, eConsole, &device);
     enumerator->Release();
-    if (FAILED(hr)) return -2;  // -2 = no microphone found
+    if (FAILED(hr)) return -2;
 
-    g_capture_alive.store(false);
     try {
         g_thread = std::thread(capture_loop, device);
     } catch (...) {
         g_running.store(false);
+        device->Release();
         return -1;
     }
-    // Wait up to 500ms for capture to confirm alive
+
     for (int i = 0; i < 50; ++i) {
         Sleep(10);
-        if (g_capture_alive.load()) return 0;
+        if (g_capture_ok.load(std::memory_order_acquire)) return 0;
     }
-    return -3;  // thread started but WASAPI init failed
+
+    g_running.store(false);
+    if (g_thread.joinable()) g_thread.join();
+    g_ring = nullptr;
+    return -3;
 }
 
 void platform_audio_stop() {
     g_running.store(false);
     if (g_thread.joinable()) g_thread.join();
+    g_capture_ok.store(false);
     g_ring = nullptr;
 }
 
