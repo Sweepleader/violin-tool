@@ -145,27 +145,18 @@ class _NeedlePainter extends CustomPainter {
     final maxAngle = pi / 3;
     final angle = (cents / 50.0).clamp(-1.0, 1.0) * maxAngle;
 
-    // In-tune zone
-    canvas.drawRect(
-      Rect.fromCenter(
-          center: Offset(centerX, bottomY - 4), width: 20, height: 8),
-      Paint()..color = AppColors.pitchInTune.withAlpha(60),
-    );
+    // Needle geometry (shared by ticks)
+    final needleLen = bottomY - pivotY;
 
-    // Baseline
-    final margin = size.width * 0.05;
-    canvas.drawLine(
-      Offset(margin, bottomY),
-      Offset(size.width - margin, bottomY),
-      Paint()..color = Colors.grey.withAlpha(60)..strokeWidth = 0.5,
-    );
-
-    // Ticks
+    // Ticks — positioned along the same arc as the needle
     for (final tick in [-50, -25, -10, 0, 10, 25, 50]) {
-      final tx = centerX + (tick / 50.0) * (size.width / 2 - margin) * 0.9;
+      final tickAngle = (tick / 50.0).clamp(-1.0, 1.0) * maxAngle;
+      final tx = centerX + needleLen * sin(tickAngle);
+      final ty = pivotY + needleLen * cos(tickAngle);
       final h = tick == 0 ? 12.0 : (tick.abs() == 50 ? 6.0 : 4.0);
       canvas.drawLine(
-        Offset(tx, bottomY - h), Offset(tx, bottomY),
+        Offset(tx, ty - h),
+        Offset(tx, ty + 2),
         Paint()..color = tick == 0 ? AppColors.pitchInTune : Colors.grey.withAlpha(80),
       );
       final tp = TextPainter(
@@ -174,11 +165,10 @@ class _NeedlePainter extends CustomPainter {
             style: TextStyle(fontSize: 9, color: Colors.grey.withAlpha(120))),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(tx - tp.width / 2, bottomY + 4));
+      tp.paint(canvas, Offset(tx - tp.width / 2, ty + 6));
     }
 
     // Needle
-    final needleLen = bottomY - pivotY;
     final dx = needleLen * sin(angle);
     final dy = needleLen * cos(angle);
     canvas.drawLine(
