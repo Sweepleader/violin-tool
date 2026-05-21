@@ -68,7 +68,6 @@ class _TunerPageState extends ConsumerState<TunerPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasSignal = _sm.state != TunerState.idle;
 
     return Scaffold(
       appBar: AppBar(
@@ -126,22 +125,13 @@ class _TunerPageState extends ConsumerState<TunerPage> {
                       onPressed: _startListening, child: const Text('Retry')),
                 ]),
               )
-            : hasSignal
-                ? PitchDisplay(
-                    sm: _sm,
-                    instrument: _instrument,
-                    strobeMode: _strobeMode,
-                    onToggleMode: () =>
-                        setState(() => _strobeMode = !_strobeMode),
-                  )
-                : Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.mic_none, size: 48,
-                        color: theme.colorScheme.onSurface.withAlpha(80)),
-                    const SizedBox(height: 16),
-                    Text('Listening…',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurface.withAlpha(153))),
-                  ]),
+            : PitchDisplay(
+                sm: _sm,
+                instrument: _instrument,
+                strobeMode: _strobeMode,
+                onToggleMode: () =>
+                    setState(() => _strobeMode = !_strobeMode),
+              ),
       ),
     );
   }
