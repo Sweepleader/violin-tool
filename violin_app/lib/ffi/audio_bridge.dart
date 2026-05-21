@@ -17,6 +17,14 @@ typedef PollPitchNative = YinResult Function(Int32);
 typedef PollPitchDart = YinResult Function(int);
 typedef StrobePollNative = StrobeResult Function(Float, Int32);
 typedef StrobePollDart = StrobeResult Function(double, int);
+typedef OutputStartNative = Int32 Function();
+typedef OutputStartDart = int Function();
+typedef OutputStopNative = Void Function();
+typedef OutputStopDart = void Function();
+typedef OutputWriteNative = Int32 Function(Pointer<Float>, Int32);
+typedef OutputWriteDart = int Function(Pointer<Float>, int);
+typedef PlayClickNative = Int32 Function(Int32, Float);
+typedef PlayClickDart = int Function(int, double);
 
 final class YinResult extends Struct {
   @Float()
@@ -40,6 +48,10 @@ class AudioBridge {
   late final int Function() available;
   late final YinResult Function(int) pollPitch;
   late final StrobeResult Function(double, int) strobePoll;
+  late final int Function() outputStart;
+  late final void Function() outputStop;
+  late final int Function(Pointer<Float>, int) outputWrite;
+  late final int Function(int, double) playClick;
 
   static AudioBridge? _instance;
   static AudioBridge get instance => _instance ??= AudioBridge._();
@@ -59,6 +71,18 @@ class AudioBridge {
     strobePoll = lib
         .lookupFunction<StrobePollNative, StrobePollDart>(
             'audio_strobe_poll');
+    outputStart = lib
+        .lookupFunction<OutputStartNative, OutputStartDart>(
+            'audio_output_start');
+    outputStop = lib
+        .lookupFunction<OutputStopNative, OutputStopDart>(
+            'audio_output_stop');
+    outputWrite = lib
+        .lookupFunction<OutputWriteNative, OutputWriteDart>(
+            'audio_output_write');
+    playClick = lib
+        .lookupFunction<PlayClickNative, PlayClickDart>(
+            'audio_play_click');
   }
 
   static DynamicLibrary _openLibrary() {

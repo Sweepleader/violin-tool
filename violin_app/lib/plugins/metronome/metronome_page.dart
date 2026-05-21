@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../../ffi/audio_bridge.dart';
 import 'widgets/metronome_display.dart';
 
 class MetronomePage extends StatefulWidget {
@@ -20,16 +21,23 @@ class _MetronomePageState extends State<MetronomePage> {
       _running = !_running;
       if (_running) {
         _beatIndex = 0;
+        AudioBridge.instance.outputStart();
         _startTicks();
       } else {
+        _stopOutput();
         _timer?.cancel();
       }
     });
   }
 
+  void _stopOutput() {
+    AudioBridge.instance.outputStop();
+  }
+
   void _startTicks() {
     final intervalMs = (60000 ~/ _bpm);
     _timer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
+      AudioBridge.instance.playClick(44100, 1.0);
       setState(() {
         _beatIndex = (_beatIndex + 1) % 4;
       });
@@ -47,6 +55,7 @@ class _MetronomePageState extends State<MetronomePage> {
   @override
   void dispose() {
     _timer?.cancel();
+    if (_running) _stopOutput();
     super.dispose();
   }
 

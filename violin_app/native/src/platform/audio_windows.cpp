@@ -201,4 +201,109 @@ void platform_audio_stop() {
     g_ring = nullptr;
 }
 
+// ── Output (render) path ───────────────────────────────────────────────────
+
+RingBuffer* g_out_ring = nullptr;
+std::atomic<bool> g_out_running{false};
+std::thread g_out_thread;
+
+void render_loop(IMMDevice* device) {
+    try {
+        HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+        if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) { device->Release(); return; }
+
+        IAudioClient* client = nullptr;
+        hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL,
+                              nullptr, (void**)&client);
+        device->Release();
+        if (FAILED(hr)) return;
+
+        WAVEFORMATEX* pwfx = nullptr;
+        client->GetMixFormat(&pwfx);
+        pwfx->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+        pwfx->nChannels = 1;
+        pwfx->wBitsPerSample = 32;
+        pwfx->nBlockAlign = 4;
+        pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * 4;
+
+        hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
+                                0, 200000, 0, pwfx, nullptr);
+        CoTaskMemFree(pwfx);
+        if (FAILED(hr)) { client->Release(); return; }
+
+        UINT32 bufferFrames;
+        client->GetBufferSize(&bufferFrames);
+
+        IAudioRenderClient* render = nullptr;
+        client->GetService(__uuidof(IAudioRenderClient), (void**)&render);
+        client->Start();
+
+        std::vector<float> silence(bufferFrames, 0.0f);
+        std::vector<float> mix(bufferFrames, 0.0f);
+
+        while (g_out_running.load(std::memory_order_relaxed)) {
+            Sleep(5);
+            // Read from output ring, mix with silence
+            size_t got = g_out_ring->read(mix.data(), bufferFrames);
+            if (got == 0) {
+                std::memcpy(mix.data(), silence.data(), bufferFrames * sizeof(float));
+            } else if (got < bufferFrames) {
+                std::memset(mix.data() + got, 0, (bufferFrames - got) * sizeof(float));
+            }
+
+            BYTE* dst;
+            hr = render->GetBuffer(bufferFrames, &dst);
+            if (SUCCEEDED(hr)) {
+                std::memcpy(dst, mix.data(), bufferFrames * sizeof(float));
+                render->ReleaseBuffer(bufferFrames, 0);
+            }
+        }
+
+        client->Stop();
+        render->Release(); client->Release();
+    } catch (...) {}
+}
+
+} // anonymous namespace
+
+extern "C" {
+
+int platform_output_init(int sample_rate) {
+    g_sample_rate = sample_rate;
+    return 0;
+}
+
+int platform_output_start(RingBuffer* ring) {
+    if (!ring) return -1;
+    g_out_ring = ring;
+    g_out_running.store(true);
+
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE && hr != S_FALSE) return -1;
+
+    IMMDeviceEnumerator* enu = nullptr;
+    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                          __uuidof(IMMDeviceEnumerator), (void**)&enu);
+    if (FAILED(hr)) return -1;
+
+    IMMDevice* device = nullptr;
+    hr = enu->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+    enu->Release();
+    if (FAILED(hr)) return -1;
+
+    try {
+        g_out_thread = std::thread(render_loop, device);
+        return g_out_thread.joinable() ? 0 : -1;
+    } catch (...) {
+        device->Release();
+        return -1;
+    }
+}
+
+void platform_output_stop() {
+    g_out_running.store(false);
+    if (g_out_thread.joinable()) g_out_thread.join();
+    g_out_ring = nullptr;
+}
+
 } // extern "C"

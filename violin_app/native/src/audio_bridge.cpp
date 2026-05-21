@@ -26,10 +26,13 @@ extern "C" {
 int platform_audio_init(int sample_rate, int frames_per_buffer);
 int platform_audio_start(RingBuffer* ring);
 void platform_audio_stop();
+int platform_output_start(RingBuffer* ring);
+void platform_output_stop();
 }
 
 namespace {
-    RingBuffer g_ring(44100 * 4);
+    RingBuffer g_ring(44100 * 4);       // capture buffer
+    RingBuffer g_out(44100 * 2);        // output buffer (2 seconds)
     // YIN smoothing state
     float g_freq_history[5] = {};
     int g_freq_idx = 0;
@@ -118,6 +121,31 @@ EXPORT StrobeResult audio_strobe_poll(float ref_freq, int32_t sample_rate) {
         return r;
     }
     return strobe_detect(buf, (int)n, ref_freq, sample_rate);
+}
+
+// ── Output path ────────────────────────────────────────────────
+
+EXPORT int32_t audio_output_start() {
+    return platform_output_start(&g_out);
+}
+
+EXPORT void audio_output_stop() {
+    platform_output_stop();
+}
+
+// Write PCM frames into the output ring buffer (non-blocking)
+EXPORT int32_t audio_output_write(const float* data, int32_t frames) {
+    if (!data || frames <= 0) return 0;
+    g_out.write(data, (size_t)frames);
+    return frames;
+}
+
+// Generate a metronome click and write directly to output buffer
+EXPORT int32_t audio_play_click(int32_t sample_rate, float volume) {
+    float buf[1024];
+    int len = metronome_generate_click(buf, sample_rate, volume);
+    if (len > 0) g_out.write(buf, (size_t)len);
+    return len;
 }
 
 } // extern "C"
