@@ -100,7 +100,7 @@ class PitchDisplay extends StatelessWidget {
   String _deviationText(double cents) {
     final abs = cents.abs();
     if (abs < 2) return 'In Tune';
-    return '${cents > 0 ? "+" : ""}${cents.toStringAsFixed(1)} \u{00A2}';
+    return '${cents > 0 ? "+" : ""}${cents.toStringAsFixed(1)} c';
   }
 }
 
