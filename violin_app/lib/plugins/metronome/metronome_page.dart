@@ -14,79 +14,48 @@ class _MetronomePageState extends State<MetronomePage> {
   int _bpm = 120;
   bool _running = false;
   int _beatIndex = 0;
-  Timer? _tickTimer;  // schedules buffer writes
-  Timer? _pollTimer;  // polls render frame for UI sync
-
-  final List<_ScheduledBeat> _schedule = [];
-  int _nextBeat = 0;
+  Timer? _pollTimer; // only for UI sync
 
   void _toggle() {
     setState(() {
       _running = !_running;
       if (_running) {
-        _beatIndex = 0;
-        _schedule.clear();
-        _nextBeat = 0;
-        _startOutput();
-        _startTicks();
+        final bridge = AudioBridge.instance;
+        bridge.outputStart();
+        bridge.metroStart(_bpm, 44100);
         _startPoll();
       } else {
-        _stopOutput();
-        _tickTimer?.cancel();
-        _pollTimer?.cancel();
+        _stop();
       }
     });
   }
 
-  void _startOutput() {
-    AudioBridge.instance.outputStart();
+  void _stop() {
+    final bridge = AudioBridge.instance;
+    bridge.metroStop();
+    bridge.outputStop();
+    _pollTimer?.cancel();
   }
 
-  void _stopOutput() {
-    AudioBridge.instance.outputStop();
-  }
-
-  void _startTicks() {
-    final intervalMs = (60000 ~/ _bpm);
-    const latencyFrames = 44100 * 20 ~/ 1000; // ~20ms WASAPI buffer
-    _tickTimer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
-      AudioBridge.instance.playClick(44100, 1.0);
-      // Use actual current render frame, not predicted — avoids cumulative error
-      final now = AudioBridge.instance.outputFrame();
-      _schedule.add(_ScheduledBeat(now + latencyFrames, _nextBeat % 4));
-      _nextBeat++;
-    });
-  }
-
-  // Step 2: Poll render frame → update UI when audio reaches each beat
   void _startPoll() {
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 5), (_) {
-      if (!_running) return;
-      final currentFrame = AudioBridge.instance.outputFrame();
-      while (_schedule.isNotEmpty &&
-          _schedule.first.targetFrame <= currentFrame) {
-        final beat = _schedule.removeAt(0);
-        if (mounted) {
-          setState(() => _beatIndex = beat.beatIndex);
-        }
-      }
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!_running || !mounted) return;
+      setState(() {
+        _beatIndex = (_beatIndex + 1) % 4; // visual pulse ~60fps
+      });
     });
   }
 
   void _setBpm(int bpm) {
     setState(() => _bpm = bpm);
     if (_running) {
-      _schedule.clear();
-      _tickTimer?.cancel();
-      _startTicks();
+      AudioBridge.instance.metroStart(_bpm, 44100);
     }
   }
 
   @override
   void dispose() {
-    _tickTimer?.cancel();
-    _pollTimer?.cancel();
-    if (_running) _stopOutput();
+    if (_running) _stop();
     super.dispose();
   }
 
@@ -124,10 +93,4 @@ class _MetronomePageState extends State<MetronomePage> {
       ),
     );
   }
-}
-
-class _ScheduledBeat {
-  final int targetFrame;
-  final int beatIndex;
-  _ScheduledBeat(this.targetFrame, this.beatIndex);
 }

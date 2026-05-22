@@ -11,6 +11,9 @@
 #include <algorithm>
 #include "ring_buffer.h"
 
+// Forward: metronome click generator
+extern "C" { int metronome_generate_click(float* buffer, int sample_rate, float volume); }
+
 namespace {
 
 RingBuffer* g_ring = nullptr;
@@ -208,6 +211,13 @@ std::atomic<bool> g_out_running{false};
 std::atomic<int64_t> g_render_frame{0};
 std::thread g_out_thread;
 
+// Metronome state (owned by render thread, accessed via start/stop API)
+std::atomic<bool> g_metro_active{false};
+std::atomic<int>  g_metro_bpm{120};
+int g_metro_beat_interval = 0;      // samples between beats
+int64_t g_next_beat_sample = 0;     // absolute sample position for next beat
+bool g_metro_pending = false;       // true when start requested, pending first init
+
 void render_loop(IMMDevice* device) {
     try {
         HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -243,6 +253,14 @@ void render_loop(IMMDevice* device) {
 
         while (g_out_running.load(std::memory_order_relaxed)) {
             Sleep(5);
+
+            // Init metronome on first iteration after start
+            if (g_metro_pending) {
+                g_metro_beat_interval = g_sample_rate * 60 / g_metro_bpm.load();
+                g_next_beat_sample = g_render_frame.load() + bufferFrames; // start next buffer
+                g_metro_pending = false;
+            }
+
             size_t got = g_out_ring->read(mono.data(), bufferFrames);
             if (got == 0) {
                 std::memcpy(mix.data(), silence.data(),
@@ -253,6 +271,29 @@ void render_loop(IMMDevice* device) {
                     float val = (i < got) ? mono[i] : 0.0f;
                     for (int ch = 0; ch < nChannels; ++ch)
                         mix[i * nChannels + ch] = val;
+                }
+            }
+
+            // ── Metronome: mix clicks at sample-accurate positions ──
+            if (g_metro_active.load(std::memory_order_relaxed)) {
+                const int64_t bufStart = g_render_frame.load();
+                float click_buf[2048];
+                while (g_next_beat_sample < bufStart + (int64_t)bufferFrames) {
+                    int offset = (int)(g_next_beat_sample - bufStart);
+                    if (offset < 0) offset = 0;
+                    int remain = (int)(bufferFrames - offset);
+                    int len = metronome_generate_click(click_buf, g_sample_rate, 0.8f);
+                    if (len > remain) len = remain;
+                    // Mix into interleaved buffer at offset
+                    for (int s = 0; s < len; ++s) {
+                        for (int ch = 0; ch < nChannels; ++ch) {
+                            int idx = (offset + s) * nChannels + ch;
+                            mix[idx] += click_buf[s];
+                            if (mix[idx] > 1.0f) mix[idx] = 1.0f;
+                            if (mix[idx] < -1.0f) mix[idx] = -1.0f;
+                        }
+                    }
+                    g_next_beat_sample += g_metro_beat_interval;
                 }
             }
 
@@ -315,6 +356,17 @@ void platform_output_stop() {
 
 int64_t platform_output_frame() {
     return g_render_frame.load(std::memory_order_acquire);
+}
+
+void platform_metronome_start(int bpm, int sample_rate) {
+    g_sample_rate = sample_rate;
+    g_metro_bpm.store(bpm);
+    g_metro_pending = true;
+    g_metro_active.store(true);
+}
+
+void platform_metronome_stop() {
+    g_metro_active.store(false);
 }
 
 } // extern "C"

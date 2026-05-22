@@ -29,6 +29,8 @@ void platform_audio_stop();
 int platform_output_start(RingBuffer* ring);
 void platform_output_stop();
 int64_t platform_output_frame();
+void platform_metronome_start(int bpm, int sample_rate);
+void platform_metronome_stop();
 }
 
 namespace {
@@ -151,6 +153,14 @@ EXPORT int32_t audio_play_click(int32_t sample_rate, float volume) {
 
 EXPORT int64_t audio_output_frame() {
     return platform_output_frame();
+}
+
+EXPORT void audio_metronome_start(int32_t bpm, int32_t sample_rate) {
+    platform_metronome_start(bpm, sample_rate);
+}
+
+EXPORT void audio_metronome_stop() {
+    platform_metronome_stop();
 }
 
 } // extern "C"
