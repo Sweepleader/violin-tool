@@ -8,6 +8,7 @@ import 'core/services/trace_logger.dart';
 import 'core/services/providers.dart';
 import 'plugins/tuner/tuner_plugin.dart';
 import 'plugins/metronome/metronome_plugin.dart';
+import 'plugins/sheet_viewer/sheet_viewer_plugin.dart';
 import 'app.dart';
 
 void main() async {
@@ -37,6 +38,10 @@ void main() async {
   final metronome = MetronomePlugin();
   await metronome.init(container);
   registry.register(metronome);
+
+  final sheetViewer = SheetViewerPlugin();
+  await sheetViewer.init(container);
+  registry.register(sheetViewer);
 
   runApp(
     UncontrolledProviderScope(

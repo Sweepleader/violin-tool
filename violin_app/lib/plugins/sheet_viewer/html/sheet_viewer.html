@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;background:#FFFCF7;">
+<div id="osmd-container"></div>
+<script>
+var osmd = null;
+function initOsmd() {
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
+    autoResize: true, backend: "svg", drawTitle: true,
+  });
+  window.flutter_inappwebview.callHandler('onOsmdReady', true);
+}
+function loadXml(xml) {
+  osmd.load(xml).then(function() { osmd.render(); });
+}
+function highlightNote(i) {
+  try { osmd.cursor.show(); for (var j=0;j<i;j++) osmd.cursor.next(); } catch(e) {}
+}
+function getNoteIndexAtPixel(x) {
+  try {
+    var all = osmd.GraphicSheet.MeasureList;
+    var best = -1, bestDist = Infinity;
+    for (var m=0; m<all.length; m++) {
+      for (var s=0; s<all[m].length; s++) {
+        var e = all[m][s].staffEntries;
+        for (var k=0; k<e.length; k++) {
+          var pos = e[k].graphicalVoiceEntry.PositionAndShape.RelativePosition;
+          if (pos) { var d = Math.abs(pos.x - x); if (d < bestDist) { bestDist=d; best=i; } }
+        }
+      }
+    }
+    return best;
+  } catch(e) { return -1; }
+}
+function nextPage() { osmd.nextPage(); osmd.render(); }
+function prevPage() { osmd.previousPage(); osmd.render(); }
+</script>
+</body>
+</html>
