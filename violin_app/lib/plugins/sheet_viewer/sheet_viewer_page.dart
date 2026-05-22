@@ -1,9 +1,8 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'widgets/playhead_overlay.dart';
 
 class SheetViewerPage extends StatefulWidget {
@@ -12,45 +11,40 @@ class SheetViewerPage extends StatefulWidget {
 }
 
 class _SheetViewerPageState extends State<SheetViewerPage> {
-  WebViewController? _controller;
+  InAppWebViewController? _controller;
   bool _osmdReady = false;
   String? _currentTitle;
   bool _trackingMode = false;
   double? _playheadX;
   int? _startNoteIndex;
-
-  bool get _isMobile =>
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
+  String _fullHtml = '';
 
   @override
   void initState() {
     super.initState();
-    if (_isMobile) _initController();
+    _initHtml();
   }
 
-  Future<void> _initController() async {
+  Future<void> _initHtml() async {
     final osmdJs = await rootBundle.loadString('assets/osmd/opensheetmusicdisplay.min.js');
     final html = await rootBundle.loadString('assets/osmd/sheet_viewer.html');
-    final fullHtml = html.replaceFirst(
+    _fullHtml = html.replaceFirst(
       '<script src="opensheetmusicdisplay.min.js"></script>',
       '<script>$osmdJs</script>',
     );
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel('Flutter', onMessageReceived: (msg) {
-        final m = msg.message;
-        if (m == 'osmdReady') {
-          setState(() => _osmdReady = true);
-          _loadBuiltIn();
-        } else if (m.startsWith('noteIndex:')) {
-          final idx = int.tryParse(m.substring(10)) ?? -1;
-          if (idx >= 0) setState(() { _startNoteIndex = idx; _playheadX = null; });
-        }
-      })
-      ..setNavigationDelegate(NavigationDelegate())
-      ..loadHtmlString(fullHtml);
     setState(() {});
+  }
+
+  void _onWebViewCreated(InAppWebViewController c) {
+    _controller = c;
+    c.addJavaScriptHandler(handlerName: 'onOsmdReady', callback: (_) {
+      setState(() => _osmdReady = true);
+      _loadBuiltIn();
+    });
+    c.addJavaScriptHandler(handlerName: 'noteIndex', callback: (args) {
+      final idx = (args.isNotEmpty ? args[0] : -1) as int;
+      if (idx >= 0) setState(() { _startNoteIndex = idx; _playheadX = null; });
+    });
   }
 
   Future<void> _loadBuiltIn() async {
@@ -73,7 +67,7 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
 
   void _loadXml(String xml) {
     final escaped = xml.replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\r', '');
-    _controller?.runJavaScript("loadXml('$escaped');");
+    _controller?.evaluateJavascript(source: "loadXml('$escaped');");
   }
 
   void _toggleTracking() {
@@ -84,30 +78,13 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
   }
 
   void _onPlayheadPosition(double x) {
-    _controller?.runJavaScript("Flutter.postMessage('noteIndex:'+getNoteIndexAtPixel($x));");
+    _controller?.evaluateJavascript(
+        source: "window.flutter_inappwebview.callHandler('noteIndex',getNoteIndexAtPixel($x));");
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (!_isMobile) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Sheet Viewer')),
-        body: const Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.phone_android, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Sheet Viewer requires Android',
-                style: TextStyle(fontSize: 16, color: Colors.grey)),
-            SizedBox(height: 4),
-            Text('Windows WebView not yet available',
-                style: TextStyle(fontSize: 13, color: Colors.grey)),
-          ]),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentTitle ?? 'Sheet Viewer'),
@@ -126,8 +103,13 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
             children: [
               if (!_osmdReady) const LinearProgressIndicator(),
               Expanded(
-                child: _controller != null
-                    ? WebViewWidget(controller: _controller!)
+                child: _fullHtml.isNotEmpty
+                    ? InAppWebView(
+                        initialData: InAppWebViewInitialData(data: _fullHtml, baseUrl: WebUri('about:blank')),
+                        initialSettings: InAppWebViewSettings(javaScriptEnabled: true),
+                        onWebViewCreated: _onWebViewCreated,
+                        onLoadStop: (c, url) { c.evaluateJavascript(source: 'initOsmd();'); },
+                      )
                     : const Center(child: CircularProgressIndicator()),
               ),
               Container(
@@ -135,10 +117,10 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
                 color: theme.colorScheme.surface,
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   IconButton(icon: const Icon(Icons.skip_previous),
-                      onPressed: () => _controller?.runJavaScript('prevPage();')),
+                      onPressed: () => _controller?.evaluateJavascript(source: 'prevPage();')),
                   const SizedBox(width: 8),
                   IconButton(icon: const Icon(Icons.skip_next),
-                      onPressed: () => _controller?.runJavaScript('nextPage();')),
+                      onPressed: () => _controller?.evaluateJavascript(source: 'nextPage();')),
                   if (_startNoteIndex != null) ...[
                     const SizedBox(width: 16),
                     Text('Start at note ${_startNoteIndex! + 1}', style: theme.textTheme.bodySmall),
