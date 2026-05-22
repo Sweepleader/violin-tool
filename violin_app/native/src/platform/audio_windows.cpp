@@ -205,6 +205,7 @@ void platform_audio_stop() {
 
 RingBuffer* g_out_ring = nullptr;
 std::atomic<bool> g_out_running{false};
+std::atomic<int64_t> g_render_frame{0};
 std::thread g_out_thread;
 
 void render_loop(IMMDevice* device) {
@@ -261,6 +262,7 @@ void render_loop(IMMDevice* device) {
                 std::memcpy(dst, mix.data(),
                             bufferFrames * nChannels * sizeof(float));
                 render->ReleaseBuffer(bufferFrames, 0);
+                g_render_frame.fetch_add(bufferFrames, std::memory_order_release);
             }
         }
 
@@ -309,6 +311,10 @@ void platform_output_stop() {
     g_out_running.store(false);
     if (g_out_thread.joinable()) g_out_thread.join();
     g_out_ring = nullptr;
+}
+
+int64_t platform_output_frame() {
+    return g_render_frame.load(std::memory_order_acquire);
 }
 
 } // extern "C"

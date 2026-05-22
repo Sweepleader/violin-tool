@@ -28,6 +28,7 @@ int platform_audio_start(RingBuffer* ring);
 void platform_audio_stop();
 int platform_output_start(RingBuffer* ring);
 void platform_output_stop();
+int64_t platform_output_frame();
 }
 
 namespace {
@@ -146,6 +147,10 @@ EXPORT int32_t audio_play_click(int32_t sample_rate, float volume) {
     int len = metronome_generate_click(buf, sample_rate, volume);
     if (len > 0) g_out.write(buf, (size_t)len);
     return len;
+}
+
+EXPORT int64_t audio_output_frame() {
+    return platform_output_frame();
 }
 
 } // extern "C"

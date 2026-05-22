@@ -25,6 +25,8 @@ typedef OutputWriteNative = Int32 Function(Pointer<Float>, Int32);
 typedef OutputWriteDart = int Function(Pointer<Float>, int);
 typedef PlayClickNative = Int32 Function(Int32, Float);
 typedef PlayClickDart = int Function(int, double);
+typedef OutputFrameNative = Int64 Function();
+typedef OutputFrameDart = int Function();
 
 final class YinResult extends Struct {
   @Float()
@@ -52,6 +54,7 @@ class AudioBridge {
   late final void Function() outputStop;
   late final int Function(Pointer<Float>, int) outputWrite;
   late final int Function(int, double) playClick;
+  late final int Function() outputFrame;
 
   static AudioBridge? _instance;
   static AudioBridge get instance => _instance ??= AudioBridge._();
@@ -83,6 +86,9 @@ class AudioBridge {
     playClick = lib
         .lookupFunction<PlayClickNative, PlayClickDart>(
             'audio_play_click');
+    outputFrame = lib
+        .lookupFunction<OutputFrameNative, OutputFrameDart>(
+            'audio_output_frame');
   }
 
   static DynamicLibrary _openLibrary() {
