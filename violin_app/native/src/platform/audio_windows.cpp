@@ -304,8 +304,19 @@ void render_loop(IMMDevice* device) {
             BYTE* dst;
             hr = render->GetBuffer(bufferFrames, &dst);
             if (SUCCEEDED(hr)) {
-                std::memcpy(dst, mix.data(),
-                            bufferFrames * nChannels * sizeof(float));
+                if (fmt.is_float) {
+                    std::memcpy(dst, mix.data(),
+                                bufferFrames * nChannels * sizeof(float));
+                } else {
+                    // Convert float mix → int16 interleaved
+                    auto* dst16 = reinterpret_cast<int16_t*>(dst);
+                    for (UINT32 i = 0; i < bufferFrames * nChannels; ++i) {
+                        float v = mix[i] * 32767.f;
+                        if (v > 32767.f) v = 32767.f;
+                        if (v < -32768.f) v = -32768.f;
+                        dst16[i] = (int16_t)v;
+                    }
+                }
                 render->ReleaseBuffer(bufferFrames, 0);
                 g_render_frame.fetch_add(bufferFrames, std::memory_order_release);
             }
