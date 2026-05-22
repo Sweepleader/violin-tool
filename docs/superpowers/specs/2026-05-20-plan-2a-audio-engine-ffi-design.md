@@ -108,3 +108,45 @@ int audio_analyze_pitch(Pointer<Float> frames, int count) → PitchResult;
 | AAudio 设备兼容性 (API 27+) | 降级路径：API < 27 回退到 OpenSL ES |
 | Dart GC 暂停影响 Isolate | 轮询间隔 25ms > 典型 GC 暂停 (10-15ms) |
 | Flutter 原生库集成 | 通过 `flutter/CMakeLists.txt` 添加子项目 |
+
+---
+
+## 音频输出 & 节拍器时序架构
+
+> **关键洞察** (ref: `precise_metronome`)：
+> "Dart never participates in per-beat timing, so GC pauses, platform channel jitter,
+> and widget rebuilds cannot affect click timing."
+> — 逐拍计时必须在 C++ 音频线程上完成。
+
+### 当前问题
+
+```
+Dart Timer → playClick() → RingBuffer → WASAPI (20ms 延迟)
+  ↓                              ↓
+setState (即刻)              声音晚 20ms → 视音不同步
+```
+
+Dart `Timer` 有 ~10ms 抖动，GC 暂停可到 50ms。WASAPI 缓冲区延迟 ~20ms。
+两重误差叠加 → 节拍器不稳。
+
+### 目标架构
+
+```
+Dart: startMetronome(bpm)  →  C++ 渲染线程内部状态机:
+  beat_interval_samples = sample_rate * 60 / bpm
+  next_beat_sample += beat_interval_samples
+  
+  while (渲染) {
+    if (current_sample >= next_beat_sample) {
+      生成 click → 混入输出
+      next_beat_sample += beat_interval_samples
+    }
+    写 WASAPI buffer
+  }
+  
+Dart: 轮询 render_frame → 仅用于 UI 同步
+```
+
+- C++ 线程以采样精度计时（44100 samples/sec → 无抖动）
+- Dart 只发 `start(bpm)` / `stop()` 命令 + 轮询帧号更新 UI
+- 参考实现：`github.com/novas1r1/precise_metronome`
