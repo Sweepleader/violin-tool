@@ -260,7 +260,8 @@ void render_loop(IMMDevice* device) {
             // Init metronome on first iteration after start
             if (g_metro_pending) {
                 g_metro_beat_interval = g_actual_sample_rate * 60 / g_metro_bpm.load();
-                g_next_beat_sample = g_render_frame.load() + bufferFrames;
+                // Fire first beat at start of current buffer
+                g_next_beat_sample = g_render_frame.load() + (int64_t)(bufferFrames / 4);
                 g_metro_beat_count.store(0);
                 g_metro_pending = false;
             }
@@ -301,29 +302,23 @@ void render_loop(IMMDevice* device) {
                 }
             }
 
-            // Check padding before GetBuffer — shared mode may block if full
-            UINT32 padding = 0;
-            client->GetCurrentPadding(&padding);
-            UINT32 avail = (bufferFrames > padding) ? (bufferFrames - padding) : 0;
-            if (avail == 0) continue;
-
             BYTE* dst;
-            hr = render->GetBuffer(avail, &dst);
+            hr = render->GetBuffer(bufferFrames, &dst);
             if (SUCCEEDED(hr)) {
                 if (fmt.is_float) {
                     std::memcpy(dst, mix.data(),
-                                avail * nChannels * sizeof(float));
+                                bufferFrames * nChannels * sizeof(float));
                 } else {
                     auto* dst16 = reinterpret_cast<int16_t*>(dst);
-                    for (UINT32 i = 0; i < avail * nChannels; ++i) {
+                    for (UINT32 i = 0; i < bufferFrames * nChannels; ++i) {
                         float v = mix[i] * 32767.f;
                         if (v > 32767.f) v = 32767.f;
                         if (v < -32768.f) v = -32768.f;
                         dst16[i] = (int16_t)v;
                     }
                 }
-                render->ReleaseBuffer(avail, 0);
-                g_render_frame.fetch_add(avail, std::memory_order_release);
+                render->ReleaseBuffer(bufferFrames, 0);
+                g_render_frame.fetch_add(bufferFrames, std::memory_order_release);
             }
         }
 
