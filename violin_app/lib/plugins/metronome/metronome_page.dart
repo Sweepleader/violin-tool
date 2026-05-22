@@ -38,15 +38,13 @@ class _MetronomePageState extends State<MetronomePage> {
   }
 
   void _startPoll() {
-    int lastBeatCount = 0;
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+    int lastFrame = -1;
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 25), (_) {
       if (!_running || !mounted) return;
-      final count = AudioBridge.instance.metroBeatCount();
-      if (count != lastBeatCount) {
-        lastBeatCount = count;
-        setState(() {
-          _beatIndex = (count - 1) % 4; // C++ beats are 1-indexed after first
-        });
+      final frame = AudioBridge.instance.metroBeatCount(); // returns lastClickFrame
+      if (frame != lastFrame && frame >= 0) {
+        lastFrame = frame;
+        setState(() => _beatIndex = (_beatIndex + 1) % 4);
       }
     });
   }

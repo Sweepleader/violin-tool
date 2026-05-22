@@ -211,14 +211,14 @@ std::atomic<bool> g_out_running{false};
 std::atomic<int64_t> g_render_frame{0};
 std::thread g_out_thread;
 
-// Metronome state (owned by render thread, accessed via start/stop API)
+// Metronome state
 std::atomic<bool> g_metro_active{false};
 std::atomic<int>  g_metro_bpm{120};
-std::atomic<int>  g_metro_beat_count{0}; // incremented each beat, for Dart UI sync
-int g_metro_beat_interval = 0;
-int64_t g_next_beat_sample = 0;
-bool g_metro_pending = false;
-int g_actual_sample_rate = 44100;   // set from render device's real rate
+std::atomic<int64_t> g_last_click_frame{-1}; // Dart polls this for UI sync
+int64_t g_frame_counter = 0;    // absolute sample counter (render thread only)
+int64_t g_frames_per_beat = 0;  // computed from BPM + sample rate
+std::vector<float> g_click_pcm; // pre-generated click waveform
+int g_actual_sample_rate = 44100;
 
 void render_loop(IMMDevice* device) {
     try {
@@ -261,21 +261,11 @@ void render_loop(IMMDevice* device) {
         while (g_out_running.load(std::memory_order_relaxed)) {
             WaitForSingleObject(hEvent, 2000);
 
-            // Init metronome on first iteration after start
-            if (g_metro_pending) {
-                g_metro_beat_interval = g_actual_sample_rate * 60 / g_metro_bpm.load();
-                // Fire first beat at start of current buffer
-                g_next_beat_sample = g_render_frame.load() + (int64_t)(bufferFrames / 4);
-                g_metro_beat_count.store(0);
-                g_metro_pending = false;
-            }
-
             size_t got = g_out_ring->read(mono.data(), bufferFrames);
             if (got == 0) {
                 std::memcpy(mix.data(), silence.data(),
                             bufferFrames * nChannels * sizeof(float));
             } else {
-                // Expand mono → interleaved multi-channel
                 for (UINT32 i = 0; i < bufferFrames; ++i) {
                     float val = (i < got) ? mono[i] : 0.0f;
                     for (int ch = 0; ch < nChannels; ++ch)
@@ -283,27 +273,28 @@ void render_loop(IMMDevice* device) {
                 }
             }
 
-            // ── Metronome: mix clicks at sample-accurate positions ──
-            if (g_metro_active.load(std::memory_order_relaxed)) {
-                const int64_t bufStart = g_render_frame.load();
-                float click_buf[2048];
-                while (g_next_beat_sample < bufStart + (int64_t)bufferFrames) {
-                    int offset = (int)(g_next_beat_sample - bufStart);
-                    if (offset < 0) offset = 0;
-                    int remain = (int)(bufferFrames - offset);
-                    int len = metronome_generate_click(click_buf, g_actual_sample_rate, 1.0f);
-                    if (len > remain) len = remain;
-                    for (int s = 0; s < len; ++s) {
-                        for (int ch = 0; ch < nChannels; ++ch) {
-                            int idx = (offset + s) * nChannels + ch;
-                            mix[idx] += click_buf[s];
-                            if (mix[idx] > 1.0f) mix[idx] = 1.0f;
-                            if (mix[idx] < -1.0f) mix[idx] = -1.0f;
+            // ── Metronome: per-sample frame counter, subtract-don't-reset ──
+            if (g_metro_active.load(std::memory_order_relaxed) && !g_click_pcm.empty()) {
+                for (UINT32 i = 0; i < bufferFrames; ++i) {
+                    if (g_frame_counter >= g_frames_per_beat) {
+                        g_frame_counter -= g_frames_per_beat; // subtract, preserve remainder
+                        // Mix pre-generated click at this exact sample
+                        int cLen = (int)g_click_pcm.size();
+                        for (int s = 0; s < cLen && (i + s) < (UINT32)bufferFrames; ++s) {
+                            for (int ch = 0; ch < nChannels; ++ch) {
+                                int idx = (i + s) * nChannels + ch;
+                                mix[idx] += g_click_pcm[s];
+                                if (mix[idx] > 1.0f) mix[idx] = 1.0f;
+                                if (mix[idx] < -1.0f) mix[idx] = -1.0f;
+                            }
                         }
+                        g_last_click_frame.store(g_render_frame.load() + i,
+                                                 std::memory_order_release);
                     }
-                    g_next_beat_sample += g_metro_beat_interval;
-                    g_metro_beat_count.fetch_add(1, std::memory_order_release);
+                    g_frame_counter++;
                 }
+            } else {
+                g_frame_counter += bufferFrames;
             }
 
             BYTE* dst;
@@ -378,18 +369,27 @@ int64_t platform_output_frame() {
 }
 
 void platform_metronome_start(int bpm, int sample_rate) {
-    g_sample_rate = sample_rate;
+    int sr = (sample_rate > 0) ? sample_rate : g_actual_sample_rate;
+    g_frames_per_beat = (int64_t)(60.0 / bpm * sr);
+    g_frame_counter = 0;
+    g_last_click_frame.store(-1);
+
+    // Pre-generate click PCM once
+    float click_buf[4096];
+    int len = metronome_generate_click(click_buf, sr, 1.0f);
+    g_click_pcm.assign(click_buf, click_buf + len);
+
     g_metro_bpm.store(bpm);
-    g_metro_pending = true;
     g_metro_active.store(true);
 }
 
 void platform_metronome_stop() {
     g_metro_active.store(false);
+    g_click_pcm.clear();
 }
 
 int32_t platform_metro_beat_count() {
-    return g_metro_beat_count.load(std::memory_order_acquire);
+    return (int32_t)g_last_click_frame.load(std::memory_order_acquire);
 }
 
 } // extern "C"
