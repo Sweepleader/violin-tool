@@ -11,6 +11,7 @@ class SheetViewerPage extends StatefulWidget {
 class _SheetViewerPageState extends State<SheetViewerPage> {
   WebViewController? _controller;
   bool _osmdReady = false;
+  String? _currentTitle;
 
   @override
   void initState() {
@@ -28,8 +29,10 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel('Flutter', onMessageReceived: (msg) {
-        if (msg.message == 'osmdReady') {
+        final m = msg.message;
+        if (m == 'osmdReady') {
           setState(() => _osmdReady = true);
+          _loadBuiltIn();
         }
       })
       ..setNavigationDelegate(NavigationDelegate())
@@ -37,13 +40,57 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
     setState(() {});
   }
 
+  Future<void> _loadBuiltIn() async {
+    try {
+      final xml = await rootBundle.loadString('assets/sheet_music/twinkle_twinkle.musicxml');
+      _loadXml(xml);
+      setState(() => _currentTitle = 'Twinkle Twinkle');
+    } catch (_) {}
+  }
+
+  void _loadXml(String xml) {
+    final escaped = xml
+        .replaceAll("'", "\\'")
+        .replaceAll('\n', '\\n')
+        .replaceAll('\r', '');
+    _controller?.runJavaScript("loadXml('$escaped');");
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Sheet Viewer')),
-      body: _controller != null
-          ? WebViewWidget(controller: _controller!)
-          : const Center(child: CircularProgressIndicator()),
+      appBar: AppBar(
+        title: Text(_currentTitle ?? 'Sheet Viewer'),
+      ),
+      body: Column(
+        children: [
+          if (!_osmdReady)
+            const LinearProgressIndicator(),
+          Expanded(
+            child: _controller != null
+                ? WebViewWidget(controller: _controller!)
+                : const Center(child: CircularProgressIndicator()),
+          ),
+          // Bottom bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: theme.colorScheme.surface,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                    icon: const Icon(Icons.skip_previous),
+                    onPressed: () => _controller?.runJavaScript('prevPage();')),
+                const SizedBox(width: 8),
+                IconButton(
+                    icon: const Icon(Icons.skip_next),
+                    onPressed: () => _controller?.runJavaScript('nextPage();')),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
