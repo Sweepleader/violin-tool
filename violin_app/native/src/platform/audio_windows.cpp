@@ -368,13 +368,13 @@ int64_t platform_output_frame() {
     return g_render_frame.load(std::memory_order_acquire);
 }
 
-void platform_metronome_start(int bpm, int sample_rate) {
-    int sr = (sample_rate > 0) ? sample_rate : g_actual_sample_rate;
+void platform_metronome_start(int bpm, int /*sample_rate*/) {
+    // Always use actual device sample rate for accurate timing
+    int sr = g_actual_sample_rate;
     g_frames_per_beat = (int64_t)(60.0 / bpm * sr);
     g_frame_counter = 0;
     g_last_click_frame.store(-1);
 
-    // Pre-generate click PCM once
     float click_buf[4096];
     int len = metronome_generate_click(click_buf, sr, 1.0f);
     g_click_pcm.assign(click_buf, click_buf + len);
