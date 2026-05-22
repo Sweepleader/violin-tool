@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,8 +8,7 @@ import 'widgets/playhead_overlay.dart';
 
 class SheetViewerPage extends StatefulWidget {
   const SheetViewerPage({super.key});
-  @override
-  State<SheetViewerPage> createState() => _SheetViewerPageState();
+  @override State<SheetViewerPage> createState() => _SheetViewerPageState();
 }
 
 class _SheetViewerPageState extends State<SheetViewerPage> {
@@ -19,10 +19,14 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
   double? _playheadX;
   int? _startNoteIndex;
 
+  bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   @override
   void initState() {
     super.initState();
-    _initController();
+    if (_isMobile) _initController();
   }
 
   Future<void> _initController() async {
@@ -41,12 +45,7 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
           _loadBuiltIn();
         } else if (m.startsWith('noteIndex:')) {
           final idx = int.tryParse(m.substring(10)) ?? -1;
-          if (idx >= 0) {
-            setState(() {
-              _startNoteIndex = idx;
-              _playheadX = null; // lock at current position
-            });
-          }
+          if (idx >= 0) setState(() { _startNoteIndex = idx; _playheadX = null; });
         }
       })
       ..setNavigationDelegate(NavigationDelegate())
@@ -64,9 +63,7 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
 
   Future<void> _importFile() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['musicxml', 'mxl', 'xml'],
-    );
+      type: FileType.custom, allowedExtensions: ['musicxml', 'mxl', 'xml']);
     if (result == null || result.files.isEmpty) return;
     final file = File(result.files.single.path!);
     final xml = await file.readAsString();
@@ -75,23 +72,15 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
   }
 
   void _loadXml(String xml) {
-    final escaped = xml
-        .replaceAll("'", "\\'")
-        .replaceAll('\n', '\\n')
-        .replaceAll('\r', '');
+    final escaped = xml.replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\r', '');
     _controller?.runJavaScript("loadXml('$escaped');");
   }
 
   void _toggleTracking() {
-    if (_trackingMode) {
-      setState(() {
-        _trackingMode = false;
-        _playheadX = null;
-        _startNoteIndex = null;
-      });
-    } else {
-      setState(() => _trackingMode = true);
-    }
+    setState(() {
+      _trackingMode = !_trackingMode;
+      if (!_trackingMode) { _playheadX = null; _startNoteIndex = null; }
+    });
   }
 
   void _onPlayheadPosition(double x) {
@@ -101,6 +90,24 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (!_isMobile) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Sheet Viewer')),
+        body: const Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.phone_android, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Sheet Viewer requires Android',
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
+            SizedBox(height: 4),
+            Text('Windows WebView not yet available',
+                style: TextStyle(fontSize: 13, color: Colors.grey)),
+          ]),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentTitle ?? 'Sheet Viewer'),
@@ -110,11 +117,7 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
             child: Text(_trackingMode ? 'Stop' : 'Follow',
                 style: TextStyle(color: theme.colorScheme.onPrimary)),
           ),
-          IconButton(
-            icon: const Icon(Icons.file_open),
-            tooltip: 'Import MusicXML',
-            onPressed: _importFile,
-          ),
+          IconButton(icon: const Icon(Icons.file_open), tooltip: 'Import', onPressed: _importFile),
         ],
       ),
       body: Stack(
@@ -130,25 +133,17 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 color: theme.colorScheme.surface,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                        icon: const Icon(Icons.skip_previous),
-                        onPressed: () =>
-                            _controller?.runJavaScript('prevPage();')),
-                    const SizedBox(width: 8),
-                    IconButton(
-                        icon: const Icon(Icons.skip_next),
-                        onPressed: () =>
-                            _controller?.runJavaScript('nextPage();')),
-                    if (_startNoteIndex != null) ...[
-                      const SizedBox(width: 16),
-                      Text('Tracking from note ${_startNoteIndex! + 1}',
-                          style: theme.textTheme.bodySmall),
-                    ],
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  IconButton(icon: const Icon(Icons.skip_previous),
+                      onPressed: () => _controller?.runJavaScript('prevPage();')),
+                  const SizedBox(width: 8),
+                  IconButton(icon: const Icon(Icons.skip_next),
+                      onPressed: () => _controller?.runJavaScript('nextPage();')),
+                  if (_startNoteIndex != null) ...[
+                    const SizedBox(width: 16),
+                    Text('Start at note ${_startNoteIndex! + 1}', style: theme.textTheme.bodySmall),
                   ],
-                ),
+                ]),
               ),
             ],
           ),

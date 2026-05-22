@@ -9,7 +9,7 @@
 var osmd=null;
 function initOsmd(){
   osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container",{autoResize:true,backend:"svg",drawTitle:true});
-  Flutter.postMessage("osmdReady");
+  window.flutter_inappwebview.callHandler("onOsmdReady",true);
 }
 function loadXml(x){osmd.load(x).then(function(){osmd.render();});}
 function highlightNote(i){try{osmd.cursor.show();for(var j=0;j<i;j++)osmd.cursor.next();}catch(e){}}
