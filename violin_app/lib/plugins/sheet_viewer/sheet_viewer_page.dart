@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 class SheetViewerPage extends StatefulWidget {
@@ -48,6 +50,19 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
     } catch (_) {}
   }
 
+  Future<void> _importFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['musicxml', 'mxl', 'xml'],
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = File(result.files.single.path!);
+    final xml = await file.readAsString();
+    _loadXml(xml);
+    final name = result.files.single.name;
+    setState(() => _currentTitle = name);
+  }
+
   void _loadXml(String xml) {
     final escaped = xml
         .replaceAll("'", "\\'")
@@ -62,6 +77,13 @@ class _SheetViewerPageState extends State<SheetViewerPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentTitle ?? 'Sheet Viewer'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_open),
+            tooltip: 'Import MusicXML',
+            onPressed: _importFile,
+          ),
+        ],
       ),
       body: Column(
         children: [
