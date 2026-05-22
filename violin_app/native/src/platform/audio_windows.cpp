@@ -214,9 +214,11 @@ std::thread g_out_thread;
 // Metronome state (owned by render thread, accessed via start/stop API)
 std::atomic<bool> g_metro_active{false};
 std::atomic<int>  g_metro_bpm{120};
-int g_metro_beat_interval = 0;      // samples between beats
-int64_t g_next_beat_sample = 0;     // absolute sample position for next beat
-bool g_metro_pending = false;       // true when start requested, pending first init
+std::atomic<int>  g_metro_beat_count{0}; // incremented each beat, for Dart UI sync
+int g_metro_beat_interval = 0;
+int64_t g_next_beat_sample = 0;
+bool g_metro_pending = false;
+int g_actual_sample_rate = 44100;   // set from render device's real rate
 
 void render_loop(IMMDevice* device) {
     try {
@@ -233,6 +235,7 @@ void render_loop(IMMDevice* device) {
         client->GetMixFormat(&pwfx);
         const int nChannels = pwfx->nChannels;
         const auto fmt = parse_format(pwfx);
+        g_actual_sample_rate = pwfx->nSamplesPerSec; // use real device rate
 
         hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                 0, 200000, 0, pwfx, nullptr);
@@ -256,8 +259,9 @@ void render_loop(IMMDevice* device) {
 
             // Init metronome on first iteration after start
             if (g_metro_pending) {
-                g_metro_beat_interval = g_sample_rate * 60 / g_metro_bpm.load();
-                g_next_beat_sample = g_render_frame.load() + bufferFrames; // start next buffer
+                g_metro_beat_interval = g_actual_sample_rate * 60 / g_metro_bpm.load();
+                g_next_beat_sample = g_render_frame.load() + bufferFrames;
+                g_metro_beat_count.store(0);
                 g_metro_pending = false;
             }
 
@@ -282,9 +286,8 @@ void render_loop(IMMDevice* device) {
                     int offset = (int)(g_next_beat_sample - bufStart);
                     if (offset < 0) offset = 0;
                     int remain = (int)(bufferFrames - offset);
-                    int len = metronome_generate_click(click_buf, g_sample_rate, 0.8f);
+                    int len = metronome_generate_click(click_buf, g_actual_sample_rate, 1.0f);
                     if (len > remain) len = remain;
-                    // Mix into interleaved buffer at offset
                     for (int s = 0; s < len; ++s) {
                         for (int ch = 0; ch < nChannels; ++ch) {
                             int idx = (offset + s) * nChannels + ch;
@@ -294,6 +297,7 @@ void render_loop(IMMDevice* device) {
                         }
                     }
                     g_next_beat_sample += g_metro_beat_interval;
+                    g_metro_beat_count.fetch_add(1, std::memory_order_release);
                 }
             }
 
@@ -367,6 +371,10 @@ void platform_metronome_start(int bpm, int sample_rate) {
 
 void platform_metronome_stop() {
     g_metro_active.store(false);
+}
+
+int32_t platform_metro_beat_count() {
+    return g_metro_beat_count.load(std::memory_order_acquire);
 }
 
 } // extern "C"

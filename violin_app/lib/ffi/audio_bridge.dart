@@ -31,6 +31,8 @@ typedef MetroStartNative = Void Function(Int32, Int32);
 typedef MetroStartDart = void Function(int, int);
 typedef MetroStopNative = Void Function();
 typedef MetroStopDart = void Function();
+typedef MetroBeatCountNative = Int32 Function();
+typedef MetroBeatCountDart = int Function();
 
 final class YinResult extends Struct {
   @Float()
@@ -61,6 +63,7 @@ class AudioBridge {
   late final int Function() outputFrame;
   late final void Function(int, int) metroStart;
   late final void Function() metroStop;
+  late final int Function() metroBeatCount;
 
   static AudioBridge? _instance;
   static AudioBridge get instance => _instance ??= AudioBridge._();
@@ -101,6 +104,9 @@ class AudioBridge {
     metroStop = lib
         .lookupFunction<MetroStopNative, MetroStopDart>(
             'audio_metronome_stop');
+    metroBeatCount = lib
+        .lookupFunction<MetroBeatCountNative, MetroBeatCountDart>(
+            'audio_metro_beat_count');
   }
 
   static DynamicLibrary _openLibrary() {

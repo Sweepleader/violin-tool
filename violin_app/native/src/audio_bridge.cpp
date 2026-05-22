@@ -31,6 +31,7 @@ void platform_output_stop();
 int64_t platform_output_frame();
 void platform_metronome_start(int bpm, int sample_rate);
 void platform_metronome_stop();
+int32_t platform_metro_beat_count();
 }
 
 namespace {
@@ -161,6 +162,10 @@ EXPORT void audio_metronome_start(int32_t bpm, int32_t sample_rate) {
 
 EXPORT void audio_metronome_stop() {
     platform_metronome_stop();
+}
+
+EXPORT int32_t audio_metro_beat_count() {
+    return platform_metro_beat_count();
 }
 
 } // extern "C"
