@@ -214,11 +214,12 @@ std::thread g_out_thread;
 // Metronome state
 std::atomic<bool> g_metro_active{false};
 std::atomic<int>  g_metro_bpm{120};
-std::atomic<int64_t> g_last_click_frame{-1}; // Dart polls this for UI sync
-int64_t g_frame_counter = 0;    // absolute sample counter (render thread only)
-int64_t g_frames_per_beat = 0;  // computed from BPM + sample rate
-std::vector<float> g_click_pcm; // pre-generated click waveform
+std::atomic<int64_t> g_last_click_frame{-1};
+int64_t g_frame_counter = 0;
+int64_t g_frames_per_beat = 0;
+std::vector<float> g_click_pcm;
 int g_actual_sample_rate = 44100;
+bool g_metro_pending = false;   // init deferred until render thread knows real sample rate
 
 void render_loop(IMMDevice* device) {
     try {
@@ -260,6 +261,18 @@ void render_loop(IMMDevice* device) {
 
         while (g_out_running.load(std::memory_order_relaxed)) {
             WaitForSingleObject(hEvent, 2000);
+
+            // Deferred metro init — now g_actual_sample_rate is valid
+            if (g_metro_pending) {
+                int sr = g_actual_sample_rate;
+                g_frames_per_beat = (int64_t)(60.0 / g_metro_bpm.load() * sr);
+                g_frame_counter = 0;
+                g_last_click_frame.store(-1);
+                float click_buf[4096];
+                int len = metronome_generate_click(click_buf, sr, 1.0f);
+                g_click_pcm.assign(click_buf, click_buf + len);
+                g_metro_pending = false;
+            }
 
             size_t got = g_out_ring->read(mono.data(), bufferFrames);
             if (got == 0) {
@@ -369,17 +382,8 @@ int64_t platform_output_frame() {
 }
 
 void platform_metronome_start(int bpm, int /*sample_rate*/) {
-    // Always use actual device sample rate for accurate timing
-    int sr = g_actual_sample_rate;
-    g_frames_per_beat = (int64_t)(60.0 / bpm * sr);
-    g_frame_counter = 0;
-    g_last_click_frame.store(-1);
-
-    float click_buf[4096];
-    int len = metronome_generate_click(click_buf, sr, 1.0f);
-    g_click_pcm.assign(click_buf, click_buf + len);
-
     g_metro_bpm.store(bpm);
+    g_metro_pending = true;  // defer init to render thread (knows real sample rate)
     g_metro_active.store(true);
 }
 
