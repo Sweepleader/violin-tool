@@ -17,10 +17,8 @@ class _MetronomePageState extends State<MetronomePage> {
   Timer? _tickTimer;  // schedules buffer writes
   Timer? _pollTimer;  // polls render frame for UI sync
 
-  // Scheduled beats: {targetRenderFrame, beatIndex}
   final List<_ScheduledBeat> _schedule = [];
   int _nextBeat = 0;
-  int _writeFrame = 0; // last known render frame when we wrote a click
 
   void _toggle() {
     setState(() {
@@ -28,7 +26,7 @@ class _MetronomePageState extends State<MetronomePage> {
       if (_running) {
         _beatIndex = 0;
         _schedule.clear();
-        _writeFrame = AudioBridge.instance.outputFrame();
+        _nextBeat = 0;
         _startOutput();
         _startTicks();
         _startPoll();
@@ -48,19 +46,15 @@ class _MetronomePageState extends State<MetronomePage> {
     AudioBridge.instance.outputStop();
   }
 
-  // Step 1: Timer fires → write click to buffer, record target frame
   void _startTicks() {
     final intervalMs = (60000 ~/ _bpm);
+    const latencyFrames = 44100 * 20 ~/ 1000; // ~20ms WASAPI buffer
     _tickTimer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
       AudioBridge.instance.playClick(44100, 1.0);
-      // Record the approximate frame when this click was written.
-      // WASAPI latency ≈ buffer size (~20ms = ~880 frames at 44.1kHz).
-      // The click will be audible when render_frame ≈ _writeFrame + latency.
-      final latencyFrames = 44100 * 20 ~/ 1000; // ~20ms
-      final targetFrame = _writeFrame + latencyFrames;
-      _schedule.add(_ScheduledBeat(targetFrame, _nextBeat % 4));
+      // Use actual current render frame, not predicted — avoids cumulative error
+      final now = AudioBridge.instance.outputFrame();
+      _schedule.add(_ScheduledBeat(now + latencyFrames, _nextBeat % 4));
       _nextBeat++;
-      _writeFrame = targetFrame;
     });
   }
 
