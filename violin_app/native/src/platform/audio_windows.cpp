@@ -235,12 +235,17 @@ void render_loop(IMMDevice* device) {
         client->GetMixFormat(&pwfx);
         const int nChannels = pwfx->nChannels;
         const auto fmt = parse_format(pwfx);
-        g_actual_sample_rate = pwfx->nSamplesPerSec; // use real device rate
+        g_actual_sample_rate = pwfx->nSamplesPerSec;
 
+        // Event-driven: WASAPI signals when buffer needs data
+        HANDLE hEvent = CreateEvent(nullptr, false, false, nullptr);
         hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED,
-                                0, 200000, 0, pwfx, nullptr);
+                                AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+                                200000, 0, pwfx, nullptr);
         CoTaskMemFree(pwfx);
-        if (FAILED(hr)) { client->Release(); return; }
+        if (FAILED(hr)) { client->Release(); CloseHandle(hEvent); return; }
+
+        client->SetEventHandle(hEvent);
 
         UINT32 bufferFrames;
         client->GetBufferSize(&bufferFrames);
@@ -249,13 +254,12 @@ void render_loop(IMMDevice* device) {
         client->GetService(__uuidof(IAudioRenderClient), (void**)&render);
         client->Start();
 
-        // Total samples = frames × channels
         std::vector<float> silence(bufferFrames * nChannels, 0.0f);
         std::vector<float> mono(bufferFrames, 0.0f);
         std::vector<float> mix(bufferFrames * nChannels, 0.0f);
 
         while (g_out_running.load(std::memory_order_relaxed)) {
-            Sleep(5);
+            WaitForSingleObject(hEvent, 2000);
 
             // Init metronome on first iteration after start
             if (g_metro_pending) {
