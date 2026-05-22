@@ -13,7 +13,26 @@ function initOsmd(){
 }
 function loadXml(x){osmd.load(x).then(function(){osmd.render();});}
 function highlightNote(i){try{osmd.cursor.show();for(var j=0;j<i;j++)osmd.cursor.next();}catch(e){}}
-function getNoteIndexAtPixel(x){return -1;}
+var noteIndex = -1;
+function getNoteIndexAtPixel(x){
+  try{
+    var sheet=osmd.GraphicSheet;
+    var measures=sheet.MeasureList;
+    var best=-1, bestDist=Infinity;
+    var idx=0;
+    for(var m=0;m<measures.length;m++){
+      for(var s=0;s<measures[m].length;s++){
+        var entries=measures[m][s].staffEntries;
+        for(var e=0;e<entries.length;e++){
+          var pos=entries[e].graphicalVoiceEntry.PositionAndShape.RelativePosition;
+          if(pos&&pos.x>0){var d=Math.abs(pos.x-x);if(d<bestDist){bestDist=d;best=idx;}}
+          idx++;
+        }
+      }
+    }
+    return best;
+  }catch(e){return -1;}
+}
 function nextPage(){osmd.nextPage();osmd.render();}
 function prevPage(){osmd.previousPage();osmd.render();}
 </script>
